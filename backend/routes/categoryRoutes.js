@@ -1,0 +1,182 @@
+import express from 'express';
+import { body, validationResult } from 'express-validator';
+import jwt from 'jsonwebtoken';
+import Category from '../models/Category.js';
+import User from '../models/User.js';
+import { protect, admin } from '../middleware/authMiddleware.js';
+import { uploadCategoryFiles, uploadToCloudinary } from '../utils/upload.js';
+
+const router = express.Router();
+
+// @route   GET /api/categories
+// @desc    Get all categories (all categories if authenticated admin, only active for public)
+// @access  Public
+router.get('/', async (req, res) => {
+  try {
+    // For public access, only show active categories
+    // Admin panel should access via /api/admin/categories or we check token here
+    let filter = { isActive: true };
+    
+    // If authorization header exists, try to verify if it's an admin
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      try {
+        const token = req.headers.authorization.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+        
+        if (user && user.role === 'admin') {
+          // Admin can see all categories (including inactive)
+          filter = {};
+        }
+      } catch (err) {
+        // If token verification fails, treat as public access
+        // Continue with active categories only
+      }
+    }
+    
+    const categories = await Category.find(filter)
+      .sort({ order: 1, name: 1 })
+      .populate('parentCategory', 'name slug');
+    
+    res.json({ success: true, categories });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/categories/:id
+// @desc    Get single category
+// @access  Public
+router.get('/:id', async (req, res) => {
+  try {
+    const category = await Category.findById(req.params.id)
+      .populate('parentCategory', 'name slug');
+    
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+    
+    res.json({ success: true, category });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   POST /api/categories
+// @desc    Create category (Admin)
+// @access  Private/Admin
+router.post('/', protect, admin, uploadCategoryFiles.single('image'), async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
+    }
+
+    let image = '';
+    if (req.file) {
+      try {
+        const uploadedImage = await uploadToCloudinary(req.file.buffer, 'waterjunction/categories', 'image');
+        if (uploadedImage) {
+          image = uploadedImage;
+        } else {
+          // If Cloudinary not configured, use base64 data URL as fallback
+          const base64 = req.file.buffer.toString('base64');
+          const mimeType = req.file.mimetype || 'image/jpeg';
+          image = `data:${mimeType};base64,${base64}`;
+        }
+      } catch (uploadError) {
+        console.error('Image upload failed:', uploadError);
+        // Continue without image if upload fails
+      }
+    }
+
+    // Generate slug from name
+    const slug = req.body.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+
+    const category = await Category.create({
+      name: req.body.name,
+      slug: slug,
+      description: req.body.description || '',
+      image,
+      parentCategory: req.body.parentCategory || null,
+      order: req.body.order || 0
+    });
+
+    res.status(201).json({ success: true, category });
+  } catch (error) {
+    console.error('Category creation error:', error);
+    res.status(500).json({ message: error.message || 'Failed to create category' });
+  }
+});
+
+// @route   PUT /api/categories/:id
+// @desc    Update category (Admin)
+// @access  Private/Admin
+router.put('/:id', protect, admin, uploadCategoryFiles.single('image'), async (req, res) => {
+  try {
+    const category = await Category.findById(req.params.id);
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+
+    const updateData = {
+      name: req.body.name,
+      description: req.body.description,
+      parentCategory: req.body.parentCategory,
+      order: req.body.order,
+      isActive: req.body.isActive !== undefined ? req.body.isActive : category.isActive
+    };
+
+    // Handle image update
+    if (req.file) {
+      try {
+        const uploadedImage = await uploadToCloudinary(req.file.buffer, 'waterjunction/categories', 'image');
+        if (uploadedImage) {
+          updateData.image = uploadedImage;
+        } else {
+          // If Cloudinary not configured, use base64 data URL as fallback
+          const base64 = req.file.buffer.toString('base64');
+          const mimeType = req.file.mimetype || 'image/jpeg';
+          updateData.image = `data:${mimeType};base64,${base64}`;
+        }
+      } catch (uploadError) {
+        console.error('Image upload failed:', uploadError);
+        // Keep existing image if upload fails
+        updateData.image = category.image || '';
+      }
+    }
+
+    const updatedCategory = await Category.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    res.json({ success: true, category: updatedCategory });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   DELETE /api/categories/:id
+// @desc    Delete category (Admin)
+// @access  Private/Admin
+router.delete('/:id', protect, admin, async (req, res) => {
+  try {
+    const category = await Category.findById(req.params.id);
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+
+    await category.deleteOne();
+    res.json({ success: true, message: 'Category deleted' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+export default router;
+

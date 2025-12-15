@@ -1,0 +1,168 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { 
+  FiDroplet, 
+  FiFilter, 
+  FiThermometer,
+  FiZap,
+  FiCoffee,
+  FiPackage
+} from 'react-icons/fi';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+const CategoryGrid = () => {
+  const navigate = useNavigate();
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Category mapping - name to icon and color
+  const categoryConfig = {
+    'Water Purifier': {
+      icon: FiDroplet,
+      color: 'from-blue-500 to-cyan-500',
+      keywords: ['water purifier', 'purifier', 'water-purifier']
+    },
+    'Water Softener': {
+      icon: FiFilter,
+      color: 'from-purple-500 to-pink-500',
+      keywords: ['water softener', 'softener', 'water-softener']
+    },
+    'Water Dispenser': {
+      icon: FiThermometer,
+      color: 'from-green-500 to-emerald-500',
+      keywords: ['water dispenser', 'dispenser', 'water-dispenser']
+    },
+    'Water Heater': {
+      icon: FiZap,
+      color: 'from-orange-500 to-red-500',
+      keywords: ['water heater', 'heater', 'geyser', 'water-heater']
+    },
+    'Kitchen Appliances': {
+      icon: FiCoffee,
+      color: 'from-indigo-500 to-purple-500',
+      keywords: ['kitchen', 'kitchen appliances', 'appliances']
+    },
+    'Water Purifier Accessories': {
+      icon: FiPackage,
+      color: 'from-teal-500 to-cyan-500',
+      keywords: ['accessories', 'purifier accessories', 'water purifier accessories']
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const { data } = await axios.get(`${API_URL}/categories`);
+      const allCategories = data.categories || [];
+      
+      // Map categories based on name matching
+      const mappedCategories = [];
+      const categoryOrder = [
+        'Water Purifier',
+        'Water Softener',
+        'Water Dispenser',
+        'Water Heater',
+        'Kitchen Appliances',
+        'Water Purifier Accessories'
+      ];
+
+      categoryOrder.forEach(categoryName => {
+        const config = categoryConfig[categoryName];
+        if (config) {
+          // Find matching category from API
+          const matchedCategory = allCategories.find(cat => {
+            const catNameLower = cat.name.toLowerCase();
+            return config.keywords.some(keyword => 
+              catNameLower.includes(keyword.toLowerCase())
+            );
+          });
+
+          if (matchedCategory) {
+            mappedCategories.push({
+              ...matchedCategory,
+              icon: config.icon,
+              color: config.color,
+              displayName: categoryName === 'Water Heater' ? 'Water Heater (Geyser)' : categoryName
+            });
+          }
+        }
+      });
+
+      // If we don't have all 6, add remaining from API
+      if (mappedCategories.length < 6 && allCategories.length > 0) {
+        allCategories.forEach(cat => {
+          if (!mappedCategories.find(m => m._id === cat._id) && mappedCategories.length < 6) {
+            mappedCategories.push({
+              ...cat,
+              icon: FiPackage,
+              color: 'from-gray-500 to-gray-600',
+              displayName: cat.name
+            });
+          }
+        });
+      }
+
+      setCategories(mappedCategories.slice(0, 6));
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      // Fallback to default categories if API fails
+      setCategories([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <section className="w-full bg-gradient-to-b from-white via-blue-50/30 to-transparent py-3 md:py-4 border-b border-gray-100">
+        <div className="container mx-auto px-3 md:px-4">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2 md:gap-3">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex flex-col items-center justify-center p-2 md:p-3 bg-white rounded-lg md:rounded-xl shadow-sm animate-pulse">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gray-200 mb-1.5 md:mb-2"></div>
+                <div className="h-3 w-16 bg-gray-200 rounded"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="w-full bg-gradient-to-b from-white via-blue-50/30 to-transparent py-3 md:py-4 border-b border-gray-100">
+      <div className="container mx-auto px-3 md:px-4">
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 md:gap-3">
+          {categories.map((category, index) => {
+            const IconComponent = category.icon || FiPackage;
+            return (
+              <button
+                key={`${category._id || 'cat'}-${index}`}
+                onClick={() => {
+                  navigate(`/products?category=${category._id}`, { replace: false });
+                  // Force a re-render by scrolling to top
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="group flex flex-col items-center justify-center p-2 md:p-3 bg-white rounded-lg md:rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 border border-gray-100 hover:border-primary-300 cursor-pointer"
+              >
+                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br ${category.color || 'from-gray-500 to-gray-600'} flex items-center justify-center mb-1.5 md:mb-2 group-hover:scale-110 transition-transform duration-300 shadow-md group-hover:shadow-lg`}>
+                  <IconComponent className="w-5 h-5 md:w-6 md:h-6 text-white" />
+                </div>
+                <span className="text-[10px] md:text-xs font-medium text-gray-700 group-hover:text-primary-600 text-center leading-tight transition-colors duration-300 line-clamp-2">
+                  {category.displayName || category.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default CategoryGrid;

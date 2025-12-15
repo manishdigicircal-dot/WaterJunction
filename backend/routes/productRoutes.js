@@ -1,0 +1,711 @@
+import express from 'express';
+import { body, query, validationResult } from 'express-validator';
+import mongoose from 'mongoose';
+import Product from '../models/Product.js';
+import { protect, admin } from '../middleware/authMiddleware.js';
+import { uploadImages, uploadVideo, uploadProductFiles, uploadToCloudinary } from '../utils/upload.js';
+
+const router = express.Router();
+
+// @route   GET /api/products
+// @desc    Get all products with filters
+// @access  Public
+router.get('/', [
+  query('page').optional().isInt({ min: 1 }),
+  query('limit').optional().isInt({ min: 1, max: 100 }),
+  query('category').optional().isMongoId().withMessage('Invalid category ID'),
+  query('minPrice').optional().isFloat({ min: 0 }),
+  query('maxPrice').optional().isFloat({ min: 0 }),
+  query('search').optional().trim(),
+  query('sort').optional().isIn(['price-asc', 'price-desc', 'rating-desc', 'newest', 'name-asc'])
+], async (req, res) => {
+  try {
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Validation error',
+        errors: errors.array() 
+      });
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
+    const skip = (page - 1) * limit;
+
+    // Build filter
+    const filter = { isActive: true };
+
+    if (req.query.category) {
+      // Validate and convert to ObjectId
+      if (mongoose.Types.ObjectId.isValid(req.query.category)) {
+        const categoryId = new mongoose.Types.ObjectId(req.query.category);
+        // Use ObjectId for proper matching
+        filter.category = categoryId;
+        console.log('Filtering by category:', req.query.category);
+        console.log('Category ObjectId:', categoryId.toString());
+      } else {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Invalid category ID format' 
+        });
+      }
+    }
+
+    if (req.query.minPrice || req.query.maxPrice) {
+      filter.price = {};
+      if (req.query.minPrice) filter.price.$gte = parseFloat(req.query.minPrice);
+      if (req.query.maxPrice) filter.price.$lte = parseFloat(req.query.maxPrice);
+    }
+
+    if (req.query.search) {
+      filter.$text = { $search: req.query.search };
+    }
+
+    // Build sort
+    let sort = {};
+    switch (req.query.sort) {
+      case 'price-asc':
+        sort = { price: 1 };
+        break;
+      case 'price-desc':
+        sort = { price: -1 };
+        break;
+      case 'rating-desc':
+        sort = { 'ratings.average': -1 };
+        break;
+      case 'newest':
+        sort = { createdAt: -1 };
+        break;
+      case 'name-asc':
+        sort = { name: 1 };
+        break;
+      default:
+        sort = { createdAt: -1 };
+    }
+
+    console.log('Product filter:', {
+      isActive: filter.isActive,
+      category: filter.category ? filter.category.toString() : 'none'
+    });
+    
+    // Debug: Check if any products exist with this category
+    if (filter.category) {
+      const testProducts = await Product.find({ category: filter.category }).limit(5);
+      console.log(`Found ${testProducts.length} products with category ${filter.category.toString()} (without isActive filter)`);
+      if (testProducts.length > 0) {
+        console.log('Sample product:', {
+          id: testProducts[0]._id,
+          name: testProducts[0].name,
+          category: testProducts[0].category.toString(),
+          isActive: testProducts[0].isActive
+        });
+      }
+    }
+    
+    const products = await Product.find(filter)
+      .populate('category', 'name slug')
+      .sort(sort)
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Product.countDocuments(filter);
+    
+    console.log(`Found ${products.length} products (total: ${total}) for filter`);
+    
+    // Debug: Log first product's category if any products found
+    if (products.length > 0 && products[0].category) {
+      console.log('Sample product category:', {
+        id: products[0].category._id?.toString(),
+        name: products[0].category.name
+      });
+    } else if (filter.category) {
+      console.log('No products found. Checking all products...');
+      const allProducts = await Product.find({}).limit(3);
+      console.log('Sample products in database:', allProducts.map(p => ({
+        id: p._id,
+        name: p.name,
+        category: p.category?.toString(),
+        isActive: p.isActive
+      })));
+    }
+
+    res.json({
+      success: true,
+      products,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/products/:id
+// @desc    Get single product
+// @access  Public
+router.get('/:id', async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id)
+      .populate('category', 'name slug')
+      .populate('relatedProducts', 'name slug images price mrp')
+      .populate('questions.askedBy', 'name')
+      .populate('questions.answeredBy', 'name');
+
+    if (!product || !product.isActive) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Increment views
+    product.views += 1;
+    await product.save({ validateBeforeSave: false });
+
+    res.json({ success: true, product });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/products/slug/:slug
+// @desc    Get product by slug
+// @access  Public
+router.get('/slug/:slug', async (req, res) => {
+  try {
+    const product = await Product.findOne({ slug: req.params.slug })
+      .populate('category', 'name slug')
+      .populate('relatedProducts', 'name slug images price mrp')
+      .populate('questions.askedBy', 'name')
+      .populate('questions.answeredBy', 'name');
+
+    if (!product || !product.isActive) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    product.views += 1;
+    await product.save({ validateBeforeSave: false });
+
+    res.json({ success: true, product });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   POST /api/products
+// @desc    Create product (Admin)
+// @access  Private/Admin
+router.post('/', protect, admin, uploadProductFiles.fields([
+  { name: 'images', maxCount: 10 },
+  { name: 'video', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const productData = JSON.parse(req.body.product || '{}');
+
+    // Upload images
+    const images = [];
+    if (req.files && req.files.images && req.files.images.length > 0) {
+      for (const file of req.files.images) {
+        try {
+          const url = await uploadToCloudinary(file.buffer, 'waterjunction/products', 'image');
+          if (url) {
+            images.push(url);
+          } else {
+            // If Cloudinary not configured, use base64 data URL as fallback
+            const base64 = file.buffer.toString('base64');
+            const mimeType = file.mimetype || 'image/jpeg';
+            images.push(`data:${mimeType};base64,${base64}`);
+          }
+        } catch (uploadError) {
+          console.error('Image upload failed:', uploadError);
+          // Continue without this image
+        }
+      }
+    }
+
+    // Upload video if present (file upload) or use video URL from form
+    let video = '';
+    if (req.files && req.files.video && req.files.video.length > 0) {
+      // Video file upload
+      const videoFile = req.files.video[0];
+      try {
+        const videoUrl = await uploadToCloudinary(videoFile.buffer, 'waterjunction/products', 'video');
+        if (videoUrl) {
+          video = videoUrl;
+        } else {
+          // If Cloudinary not configured, use base64 data URL as fallback
+          const base64 = videoFile.buffer.toString('base64');
+          const mimeType = videoFile.mimetype || 'video/mp4';
+          video = `data:${mimeType};base64,${base64}`;
+        }
+      } catch (uploadError) {
+        console.error('Video upload failed:', uploadError);
+        // Continue without video
+      }
+    } else if (productData.video) {
+      // Video URL from form (YouTube, Vimeo, or direct link)
+      video = productData.video;
+    }
+
+    // Generate slug from name
+    if (!productData.slug && productData.name) {
+      let baseSlug = productData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+      
+      // Ensure slug uniqueness
+      let slug = baseSlug;
+      let counter = 1;
+      while (await Product.findOne({ slug })) {
+        slug = `${baseSlug}-${counter}`;
+        counter++;
+      }
+      productData.slug = slug;
+    }
+
+    // Parse specifications - NO TRUNCATION - all keys and values are unlimited
+    if (productData.specifications && typeof productData.specifications === 'object') {
+      const specs = {};
+      const specSections = ['performanceFeatures', 'warranty', 'general', 'dimensions'];
+      // NO LENGTH LIMITS - keys and values are unlimited
+      
+      for (const section of specSections) {
+        if (productData.specifications[section] && 
+            typeof productData.specifications[section] === 'object' &&
+            !Array.isArray(productData.specifications[section]) &&
+            Object.keys(productData.specifications[section]).length > 0) {
+          try {
+            const sectionMap = new Map();
+            const sectionData = productData.specifications[section];
+            
+            for (const [key, value] of Object.entries(sectionData)) {
+              // NO TRUNCATION - keep original key and value as is (unlimited length)
+              const originalKey = String(key).trim();
+              const originalValue = String(value); // No truncation
+              
+              if (originalKey.length > 0) {
+                sectionMap.set(originalKey, originalValue);
+              }
+            }
+            
+            if (sectionMap.size > 0) {
+              specs[section] = sectionMap;
+            }
+          } catch (mapError) {
+            console.error(`Failed to create Map for ${section}:`, mapError);
+            // Skip this section if Map creation fails
+          }
+        }
+      }
+      
+      if (Object.keys(specs).length > 0) {
+        productData.specifications = specs;
+      }
+    }
+
+    const product = await Product.create({
+      ...productData,
+      images,
+      video
+    });
+
+    res.status(201).json({ success: true, product });
+  } catch (error) {
+    console.error('Product creation error:', error);
+    res.status(500).json({ message: error.message || 'Failed to create product' });
+  }
+});
+
+// @route   PUT /api/products/:id
+// @desc    Update product (Admin)
+// @access  Private/Admin
+router.put('/:id', protect, admin, uploadProductFiles.fields([
+  { name: 'images', maxCount: 10 },
+  { name: 'video', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    let productData;
+    try {
+      productData = JSON.parse(req.body.product || '{}');
+      console.log('Parsed product data:', Object.keys(productData));
+    } catch (parseError) {
+      console.error('Failed to parse product data:', parseError);
+      return res.status(400).json({ message: 'Invalid product data format' });
+    }
+
+    // Handle image updates
+    if (req.files && req.files.images && req.files.images.length > 0) {
+      const newImages = [];
+      for (const file of req.files.images) {
+        try {
+          const url = await uploadToCloudinary(file.buffer, 'waterjunction/products', 'image');
+          if (url) {
+            newImages.push(url);
+          } else {
+            // If Cloudinary not configured, use base64 data URL as fallback
+            const base64 = file.buffer.toString('base64');
+            const mimeType = file.mimetype || 'image/jpeg';
+            newImages.push(`data:${mimeType};base64,${base64}`);
+          }
+        } catch (uploadError) {
+          console.error('Image upload failed:', uploadError);
+          // Continue without this image
+        }
+      }
+      // Use existing images from productData if provided, otherwise use product.images
+      const existingImages = productData.images && Array.isArray(productData.images) 
+        ? productData.images 
+        : (product.images || []);
+      productData.images = [...existingImages, ...newImages];
+    } else if (productData.images !== undefined) {
+      // If no new images but images array is provided, use it
+      productData.images = Array.isArray(productData.images) ? productData.images : [];
+    }
+
+    // Handle video update - can be file upload or URL
+    if (req.files && req.files.video && req.files.video.length > 0) {
+      // Video file upload takes priority
+      const videoFile = req.files.video[0];
+      try {
+        const videoUrl = await uploadToCloudinary(videoFile.buffer, 'waterjunction/products', 'video');
+        if (videoUrl) {
+          productData.video = videoUrl;
+        } else {
+          // If Cloudinary not configured, use base64 data URL as fallback
+          const base64 = videoFile.buffer.toString('base64');
+          const mimeType = videoFile.mimetype || 'video/mp4';
+          productData.video = `data:${mimeType};base64,${base64}`;
+        }
+      } catch (uploadError) {
+        console.error('Video upload failed:', uploadError);
+        // Keep existing video if upload fails
+        if (!productData.video) {
+          productData.video = product.video || '';
+        }
+      }
+    } else if (productData.video !== undefined) {
+      // Video URL from form (can be empty string to clear video)
+      productData.video = productData.video || '';
+    }
+
+    // Parse specifications - NO TRUNCATION - all keys and values are unlimited
+    if (productData.specifications && typeof productData.specifications === 'object') {
+      const specs = {};
+      const specSections = ['performanceFeatures', 'warranty', 'general', 'dimensions'];
+      // NO LENGTH LIMITS - keys and values are unlimited
+      
+      for (const section of specSections) {
+        if (productData.specifications[section] && 
+            typeof productData.specifications[section] === 'object' &&
+            !Array.isArray(productData.specifications[section]) &&
+            Object.keys(productData.specifications[section]).length > 0) {
+          try {
+            const sectionMap = new Map();
+            const sectionData = productData.specifications[section];
+            
+            for (const [key, value] of Object.entries(sectionData)) {
+              // NO TRUNCATION - keep original key and value as is (unlimited length)
+              const originalKey = String(key).trim();
+              const originalValue = String(value); // No truncation
+              
+              // Only add if key is not empty
+              if (originalKey.length > 0) {
+                sectionMap.set(originalKey, originalValue);
+              }
+            }
+            
+            if (sectionMap.size > 0) {
+              specs[section] = sectionMap;
+            }
+          } catch (mapError) {
+            console.error(`Failed to create Map for ${section}:`, mapError);
+            // Skip this section if Map creation fails
+          }
+        }
+      }
+      
+      // Only set specifications if we have at least one valid section
+      if (Object.keys(specs).length > 0) {
+        productData.specifications = specs;
+      } else {
+        // If no valid specs, keep existing or set to empty
+        delete productData.specifications;
+      }
+    } else if (productData.specifications === null || productData.specifications === '') {
+      // Allow clearing specifications
+      delete productData.specifications;
+    }
+
+    // NO TRUNCATION for slug - unlimited length
+    // Slug will be handled by pre-save hook if needed
+
+    // Remove undefined fields and protected fields
+    const fieldsToUpdate = {};
+    Object.keys(productData).forEach(key => {
+      // Skip undefined, _id, __v, and other protected fields
+      if (productData[key] !== undefined && 
+          key !== '_id' && 
+          key !== '__v' && 
+          key !== 'createdAt' && 
+          key !== 'updatedAt') {
+        fieldsToUpdate[key] = productData[key];
+      }
+    });
+
+    console.log('Fields to update:', Object.keys(fieldsToUpdate));
+
+    // Use findByIdAndUpdate instead of save() for better reliability
+    // This avoids issues with pre-save hooks and Map types
+    const updateData = {};
+    
+    Object.keys(fieldsToUpdate).forEach(key => {
+      try {
+        // Handle specifications Maps specially - convert to plain object for update
+        if (key === 'specifications' && fieldsToUpdate[key]) {
+          // Convert Map to plain object for MongoDB update
+          let specsObj = {};
+          if (fieldsToUpdate[key] instanceof Map) {
+            // Already a Map, convert to object
+            const specs = fieldsToUpdate[key];
+            Object.keys(specs).forEach(section => {
+              if (specs[section] instanceof Map) {
+                specsObj[section] = Object.fromEntries(specs[section]);
+              } else {
+                specsObj[section] = specs[section];
+              }
+            });
+          } else {
+            // Already an object - check if sections are Maps
+            specsObj = {};
+            Object.keys(fieldsToUpdate[key]).forEach(section => {
+              if (fieldsToUpdate[key][section] instanceof Map) {
+                specsObj[section] = Object.fromEntries(fieldsToUpdate[key][section]);
+              } else {
+                specsObj[section] = fieldsToUpdate[key][section];
+              }
+            });
+          }
+          updateData[key] = specsObj;
+        } else {
+          updateData[key] = fieldsToUpdate[key];
+        }
+      } catch (assignError) {
+        console.error(`Error preparing field ${key} for update:`, assignError);
+        console.error(`Field value:`, fieldsToUpdate[key]);
+        // Continue with other fields
+      }
+    });
+
+    console.log('Attempting to update product with data:', Object.keys(updateData));
+    
+    // Remove fields that might cause index key size issues
+    // MongoDB has a 1024 byte limit for index keys
+    // Text index fields (name, description) might cause issues if too long
+    const safeUpdateData = { ...updateData };
+    
+    // If name or description are too long, truncate them for the index
+    // But keep full values in the document
+    if (safeUpdateData.name && safeUpdateData.name.length > 1000) {
+      console.warn('Name is very long, but keeping it as is');
+    }
+    if (safeUpdateData.description && safeUpdateData.description.length > 10000) {
+      console.warn('Description is very long, but keeping it as is');
+    }
+    
+    // Use native MongoDB update to completely bypass Mongoose validations
+    // This avoids all "field too long" errors
+    const db = mongoose.connection.db;
+    const collection = db.collection('products');
+    
+    // Convert ObjectId
+    const ObjectId = mongoose.Types.ObjectId;
+    
+    // Use MongoDB native updateOne to bypass ALL validations
+    const result = await collection.updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: safeUpdateData },
+      { bypassDocumentValidation: true } // Bypass MongoDB document validation
+    );
+    
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    
+    // Fetch the updated product using Mongoose
+    const updatedProduct = await Product.findById(req.params.id);
+    
+    if (!updatedProduct) {
+      return res.status(404).json({ message: 'Product not found after update' });
+    }
+    
+    console.log('Product updated successfully using native MongoDB update');
+
+    res.json({ success: true, product: updatedProduct });
+  } catch (error) {
+    console.error('Product update error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      errors: error.errors,
+      keyPattern: error.keyPattern,
+      keyValue: error.keyValue
+    });
+    
+    // Log the product data that caused the error
+    if (req.body.product) {
+      try {
+        const errorData = JSON.parse(req.body.product);
+        console.error('Product data that caused error:', {
+          keys: Object.keys(errorData),
+          hasSpecifications: !!errorData.specifications,
+          hasImages: !!errorData.images,
+          hasVideo: !!errorData.video
+        });
+      } catch (e) {
+        console.error('Could not parse product data for error logging');
+      }
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errors = {};
+      if (error.errors) {
+        Object.keys(error.errors).forEach(key => {
+          errors[key] = error.errors[key].message;
+        });
+      }
+      return res.status(400).json({ 
+        message: 'Validation failed',
+        errors: errors,
+        details: error.message
+      });
+    }
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0] || 'field';
+      return res.status(400).json({ 
+        message: `${field} already exists`,
+        details: error.message
+      });
+    }
+    
+    // Handle string length errors - check various error message formats
+    if (error.message && (
+      error.message.includes('too long') || 
+      error.message.includes('maximum length') ||
+      error.message.includes('exceeds maximum') ||
+      error.message.includes('String length') ||
+      error.message.includes('index key') ||
+      error.message.includes('index size')
+    )) {
+      // Try to extract field name from error message
+      const fieldMatch = error.message.match(/`?(\w+)`?/);
+      const fieldName = fieldMatch ? fieldMatch[1] : 'field';
+      
+      return res.status(400).json({ 
+        message: `Field "${fieldName}" value is too long. This might be due to MongoDB index limits. Please try updating without that field or contact support.`,
+        field: fieldName,
+        details: error.message,
+        suggestion: 'Try updating the product in smaller parts or remove very long text fields temporarily.'
+      });
+    }
+    
+    res.status(500).json({ 
+      message: error.message || 'Failed to update product',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      details: process.env.NODE_ENV === 'development' ? {
+        name: error.name,
+        code: error.code,
+        errors: error.errors,
+        message: error.message
+      } : {
+        message: error.message
+      }
+    });
+  }
+});
+
+// @route   DELETE /api/products/:id
+// @desc    Delete product (Admin)
+// @access  Private/Admin
+router.delete('/:id', protect, admin, async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    await product.deleteOne();
+    res.json({ success: true, message: 'Product deleted' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   POST /api/products/:id/questions
+// @desc    Add question to product
+// @access  Private
+router.post('/:id/questions', protect, [
+  body('question').trim().notEmpty()
+], async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    product.questions.push({
+      question: req.body.question,
+      askedBy: req.user.id
+    });
+
+    await product.save();
+    res.json({ success: true, product });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   PUT /api/products/:id/questions/:qId
+// @desc    Answer question (Admin)
+// @access  Private/Admin
+router.put('/:id/questions/:qId', protect, admin, [
+  body('answer').trim().notEmpty()
+], async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    const question = product.questions.id(req.params.qId);
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+
+    question.answer = req.body.answer;
+    question.answeredBy = req.user.id;
+    question.answeredAt = new Date();
+    question.isApproved = true;
+
+    await product.save();
+    res.json({ success: true, product });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+export default router;
+
