@@ -72,7 +72,10 @@ router.post('/register', [
 
     sendTokenResponse(user, 201, res);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error in /api/auth/register:', error);
+    res.status(500).json({
+      message: error.message || 'Registration failed',
+    });
   }
 });
 

@@ -1,13 +1,19 @@
 import jwt from 'jsonwebtoken';
 
+// Fallback secrets so app doesn't crash if env vars are missing (for dev/demo).
+// NOTE: In real production, ALWAYS override these with strong secrets in env vars.
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
+const JWT_REFRESH_SECRET =
+  process.env.JWT_REFRESH_SECRET || 'dev_jwt_refresh_secret_change_me';
+
 export const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
+  return jwt.sign({ id }, JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || '7d'
   });
 };
 
 export const generateRefreshToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_REFRESH_SECRET, {
+  return jwt.sign({ id }, JWT_REFRESH_SECRET, {
     expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d'
   });
 };
