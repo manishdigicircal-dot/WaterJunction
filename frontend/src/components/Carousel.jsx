@@ -16,10 +16,10 @@ const Carousel = () => {
   ];
 
   const mobileImages = [
-    '/carousel/mobile/carousel-mobile-1.jpg',
-    '/carousel/mobile/carousel-mobile-2.jpg',
-    '/carousel/mobile/carousel-mobile-3.jpg',
-    '/carousel/mobile/carousel-mobile-4.jpg',
+    '/carousel/mobile/carousel-desktop-1.jpg',
+    '/carousel/mobile/carousel-desktop-2.jpg',
+    '/carousel/mobile/carousel-desktop-3.jpg',
+    '/carousel/mobile/carousel-desktop-4.jpg',
   ];
 
   // Detect screen size
