@@ -15,11 +15,12 @@ const Carousel = () => {
     '/carousel/desktop/carousel-desktop-4.png',
   ];
 
+  // For now, reuse desktop images on mobile to avoid missing file 404s in production
   const mobileImages = [
-    '/carousel/mobile/carousel-desktop-1.jpg',
-    '/carousel/mobile/carousel-desktop-2.jpg',
-    '/carousel/mobile/carousel-desktop-3.jpg',
-    '/carousel/mobile/carousel-desktop-4.jpg',
+    '/carousel/desktop/carousel-desktop-1.png',
+    '/carousel/desktop/carousel-desktop-2.png',
+    '/carousel/desktop/carousel-desktop-3.png',
+    '/carousel/desktop/carousel-desktop-4.png',
   ];
 
   // Detect screen size
