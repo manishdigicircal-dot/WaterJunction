@@ -79,10 +79,20 @@ app.use(notFound);
 app.use(errorHandler);
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/water', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+// mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/water', {
+//   useNewUrlParser: true,
+//   useUnifiedTopology: true,
+// })
+
+
+const mongoUri =
+  process.env.MONGO_URI || 'mongodb://localhost:27017/water';
+
+mongoose.connect(mongoUri)
+
+
+
+
 .then(() => {
   console.log('✅ MongoDB Connected Successfully');
   
