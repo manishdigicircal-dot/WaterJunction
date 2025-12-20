@@ -94,9 +94,9 @@ CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 
-# Razorpay Configuration
-RAZORPAY_KEY_ID=rzp_test_Roi8KojaRm22b6
-RAZORPAY_KEY_SECRET=VmANPPsMGQhkrGQQUKX4CZ74
+# Razorpay Configuration (Live Keys)
+RAZORPAY_KEY_ID=rzp_live_RtlA2dF0qpGDAo
+RAZORPAY_KEY_SECRET=8kENMBS3uj7K1ggyfNs1KlSs
 
 # Twilio Configuration (for OTP - optional)
 TWILIO_ACCOUNT_SID=your_twilio_account_sid
@@ -134,7 +134,7 @@ VITE_FIREBASE_STORAGE_BUCKET=digi-72be4.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=632012280788
 VITE_FIREBASE_APP_ID=1:632012280788:web:0646afe4249002eaaebc41
 VITE_FIREBASE_MEASUREMENT_ID=G-NYSEBRJKWY
-VITE_RAZORPAY_KEY_ID=rzp_test_Roi8KojaRm22b6
+VITE_RAZORPAY_KEY_ID=rzp_live_RtlA2dF0qpGDAo
 VITE_GOOGLE_CLIENT_ID=your_google_client_id
 VITE_FACEBOOK_APP_ID=your_facebook_app_id
 ```

@@ -9,9 +9,9 @@ import { getTranslation } from '../../utils/translations';
 import { FiMapPin, FiCreditCard, FiShoppingBag, FiPlus, FiCheck, FiLock, FiTruck, FiShield } from 'react-icons/fi';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-// Prefer env key, but fall back to a configured default so payment works even if env is missing
+// Razorpay Live Key - Must be set via VITE_RAZORPAY_KEY_ID env variable
 const RAZORPAY_KEY_ID =
-  import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_Roi8KojaRm22b6';
+  import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_RtlA2dF0qpGDAo';
 
 const Checkout = () => {
   const navigate = useNavigate();
