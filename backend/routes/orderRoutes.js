@@ -368,14 +368,17 @@ router.get('/admin/all', protect, admin, async (req, res) => {
     const filter = {};
     if (status) filter.status = status;
 
-    const orders = await Order.find(filter)
-      .populate('user', 'name email phone')
-      .populate('items.product', 'name images')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    const total = await Order.countDocuments(filter);
+    const [orders, total] = await Promise.all([
+      Order.find(filter)
+        .populate('user', 'name email phone')
+        .populate('items.product', 'name images')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean()
+        .maxTimeMS(10000),
+      Order.countDocuments(filter).maxTimeMS(5000)
+    ]);
 
     res.json({
       success: true,

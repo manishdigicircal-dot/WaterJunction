@@ -23,51 +23,86 @@ router.get('/stats', async (req, res) => {
   try {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfDay = new Date(now.setHours(0, 0, 0, 0));
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
 
-    // Total stats
-    const totalUsers = await User.countDocuments();
-    const totalProducts = await Product.countDocuments();
-    const totalOrders = await Order.countDocuments();
-    const totalCategories = await Category.countDocuments();
+    // Use aggregation for revenue calculations - MUCH faster than loading all orders
+    const [totalRevenueResult] = await Order.aggregate([
+      { $match: { paymentStatus: 'paid' } },
+      { $group: { _id: null, total: { $sum: '$total' } } }
+    ]).maxTimeMS(10000);
 
-    // Revenue stats
-    const allOrders = await Order.find({ paymentStatus: 'paid' });
-    const totalRevenue = allOrders.reduce((sum, order) => sum + order.total, 0);
-    
-    const monthlyOrders = await Order.find({
-      paymentStatus: 'paid',
-      createdAt: { $gte: startOfMonth }
-    });
-    const monthlyRevenue = monthlyOrders.reduce((sum, order) => sum + order.total, 0);
+    const [monthlyRevenueResult] = await Order.aggregate([
+      {
+        $match: {
+          paymentStatus: 'paid',
+          createdAt: { $gte: startOfMonth }
+        }
+      },
+      { $group: { _id: null, total: { $sum: '$total' } } }
+    ]).maxTimeMS(10000);
 
-    const todayOrders = await Order.find({
-      paymentStatus: 'paid',
-      createdAt: { $gte: startOfDay }
-    });
-    const todayRevenue = todayOrders.reduce((sum, order) => sum + order.total, 0);
+    const [todayRevenueResult] = await Order.aggregate([
+      {
+        $match: {
+          paymentStatus: 'paid',
+          createdAt: { $gte: startOfDay }
+        }
+      },
+      { $group: { _id: null, total: { $sum: '$total' } } }
+    ]).maxTimeMS(10000);
 
-    // Order status counts
+    const totalRevenue = totalRevenueResult?.total || 0;
+    const monthlyRevenue = monthlyRevenueResult?.total || 0;
+    const todayRevenue = todayRevenueResult?.total || 0;
+
+    // Execute all count queries in parallel for better performance
+    const [
+      totalUsers,
+      totalProducts,
+      totalOrders,
+      totalCategories,
+      orderStatsPending,
+      orderStatsPaid,
+      orderStatsPacked,
+      orderStatsShipped,
+      orderStatsDelivered,
+      orderStatsCancelled,
+      topProducts,
+      recentOrders
+    ] = await Promise.all([
+      User.countDocuments().maxTimeMS(5000),
+      Product.countDocuments().maxTimeMS(5000),
+      Order.countDocuments().maxTimeMS(5000),
+      Category.countDocuments().maxTimeMS(5000),
+      Order.countDocuments({ status: 'pending' }).maxTimeMS(5000),
+      Order.countDocuments({ status: 'paid' }).maxTimeMS(5000),
+      Order.countDocuments({ status: 'packed' }).maxTimeMS(5000),
+      Order.countDocuments({ status: 'shipped' }).maxTimeMS(5000),
+      Order.countDocuments({ status: 'delivered' }).maxTimeMS(5000),
+      Order.countDocuments({ status: 'cancelled' }).maxTimeMS(5000),
+      Product.find()
+        .sort({ sales: -1 })
+        .limit(10)
+        .select('name images price sales')
+        .lean()
+        .maxTimeMS(5000),
+      Order.find()
+        .populate('user', 'name email')
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean()
+        .maxTimeMS(5000)
+    ]);
+
     const orderStats = {
-      pending: await Order.countDocuments({ status: 'pending' }),
-      paid: await Order.countDocuments({ status: 'paid' }),
-      packed: await Order.countDocuments({ status: 'packed' }),
-      shipped: await Order.countDocuments({ status: 'shipped' }),
-      delivered: await Order.countDocuments({ status: 'delivered' }),
-      cancelled: await Order.countDocuments({ status: 'cancelled' })
+      pending: orderStatsPending,
+      paid: orderStatsPaid,
+      packed: orderStatsPacked,
+      shipped: orderStatsShipped,
+      delivered: orderStatsDelivered,
+      cancelled: orderStatsCancelled
     };
-
-    // Top products
-    const topProducts = await Product.find()
-      .sort({ sales: -1 })
-      .limit(10)
-      .select('name images price sales');
-
-    // Recent orders
-    const recentOrders = await Order.find()
-      .populate('user', 'name email')
-      .sort({ createdAt: -1 })
-      .limit(10);
 
     // Generate monthly revenue chart data (last 12 months)
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -89,41 +124,41 @@ router.get('/stats', async (req, res) => {
       };
     }
     
-    // Aggregate revenue data (paid orders only)
-    const revenueAggregation = await Order.aggregate([
-      {
-        $match: {
-          paymentStatus: 'paid',
-          createdAt: { $gte: twelveMonthsAgo }
+    // Aggregate revenue data (paid orders only) - execute in parallel with orders aggregation
+    const [revenueAggregation, ordersAggregation] = await Promise.all([
+      Order.aggregate([
+        {
+          $match: {
+            paymentStatus: 'paid',
+            createdAt: { $gte: twelveMonthsAgo }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              month: { $month: '$createdAt' }
+            },
+            revenue: { $sum: '$total' }
+          }
         }
-      },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' }
-          },
-          revenue: { $sum: '$total' }
+      ]).maxTimeMS(10000),
+      Order.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: twelveMonthsAgo }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              month: { $month: '$createdAt' }
+            },
+            orders: { $sum: 1 }
+          }
         }
-      }
-    ]);
-    
-    // Aggregate orders data (all orders)
-    const ordersAggregation = await Order.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: twelveMonthsAgo }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' }
-          },
-          orders: { $sum: 1 }
-        }
-      }
+      ]).maxTimeMS(10000)
     ]);
     
     // Populate revenue data
@@ -173,7 +208,12 @@ router.get('/stats', async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Admin stats error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message || 'Failed to fetch stats',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
