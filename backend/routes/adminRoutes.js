@@ -69,7 +69,7 @@ router.get('/stats', async (req, res) => {
     const todayRevenue = todayRevenueResult?.total || 0;
 
     // PERFORMANCE: Use single aggregation for order status counts instead of multiple count queries
-    const [orderStatusCounts] = await Order.aggregate([
+    const orderStatusCounts = await Order.aggregate([
       {
         $group: {
           _id: '$status',
@@ -87,11 +87,15 @@ router.get('/stats', async (req, res) => {
       delivered: 0,
       cancelled: 0
     };
-    orderStatusCounts.forEach(item => {
-      if (orderStats.hasOwnProperty(item._id)) {
-        orderStats[item._id] = item.count;
-      }
-    });
+    
+    // Ensure orderStatusCounts is an array before iterating
+    if (Array.isArray(orderStatusCounts)) {
+      orderStatusCounts.forEach(item => {
+        if (item && item._id && orderStats.hasOwnProperty(item._id)) {
+          orderStats[item._id] = item.count || 0;
+        }
+      });
+    }
 
     // PERFORMANCE: Execute remaining queries in parallel with optimized timeouts
     const [
