@@ -10,13 +10,41 @@ const router = express.Router();
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    let wishlist = await Wishlist.findOne({ user: req.user.id }).populate('items.product');
+    // PERFORMANCE: Use lean() for read-only query for faster response
+    let wishlist = await Wishlist.findOne({ user: req.user.id })
+      .lean()
+      .maxTimeMS(5000);
     
     if (!wishlist) {
-      wishlist = await Wishlist.create({ user: req.user.id, items: [] });
+      // Create wishlist if doesn't exist
+      const newWishlist = await Wishlist.create({ user: req.user.id, items: [] });
+      wishlist = newWishlist.toObject();
     }
 
-    res.json({ success: true, wishlist });
+    // PERFORMANCE: Populate with lean() and select only needed fields
+    const populatedWishlist = await Wishlist.populate(wishlist, {
+      path: 'items.product',
+      select: '_id name price mrp discountPercent stock images ratings isActive slug', // Only essential fields
+      options: { lean: true }
+    });
+
+    // PERFORMANCE: Only send first image to reduce payload size dramatically
+    if (populatedWishlist.items) {
+      populatedWishlist.items = populatedWishlist.items.map(item => {
+        if (item.product && item.product.images && item.product.images.length > 0) {
+          item.product.images = [item.product.images[0]];
+        }
+        return item;
+      });
+    }
+
+    // PERFORMANCE: Set cache headers for better client-side caching
+    res.set({
+      'Cache-Control': 'private, max-age=60', // Cache for 1 minute (private for user-specific data)
+      'ETag': `"wishlist-${populatedWishlist._id}"`
+    });
+
+    res.json({ success: true, wishlist: populatedWishlist });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

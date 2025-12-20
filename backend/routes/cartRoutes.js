@@ -28,14 +28,41 @@ const populateCartProducts = async (cart) => {
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    let cart = await Cart.findOne({ user: req.user.id });
+    // PERFORMANCE: Use lean() for read-only query and select only needed fields
+    let cart = await Cart.findOne({ user: req.user.id })
+      .lean()
+      .maxTimeMS(5000);
     
     if (!cart) {
-      cart = await Cart.create({ user: req.user.id, items: [] });
+      // Create cart if doesn't exist (use regular save, not lean)
+      const newCart = await Cart.create({ user: req.user.id, items: [] });
+      cart = newCart.toObject();
     }
 
-    await populateCartProducts(cart);
-    res.json({ success: true, cart });
+    // PERFORMANCE: Populate with lean() for faster query and only first image
+    const populatedCart = await Cart.populate(cart, {
+      path: 'items.product',
+      select: '_id name price mrp discountPercent stock images ratings isActive slug',
+      options: { lean: true }
+    });
+
+    // PERFORMANCE: Only send first image to reduce payload size
+    if (populatedCart.items) {
+      populatedCart.items = populatedCart.items.map(item => {
+        if (item.product && item.product.images && item.product.images.length > 0) {
+          item.product.images = [item.product.images[0]];
+        }
+        return item;
+      });
+    }
+
+    // PERFORMANCE: Set cache headers for better client-side caching
+    res.set({
+      'Cache-Control': 'private, max-age=60', // Cache for 1 minute (private for user-specific data)
+      'ETag': `"cart-${populatedCart._id}-${populatedCart.lastUpdated}"`
+    });
+
+    res.json({ success: true, cart: populatedCart });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

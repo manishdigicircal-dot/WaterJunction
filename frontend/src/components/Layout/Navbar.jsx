@@ -1,8 +1,8 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../../store/slices/authSlice';
-import { fetchCart, initializeGuestCart, getCartItemCount } from '../../store/slices/cartSlice';
-import { fetchWishlist } from '../../store/slices/wishlistSlice';
+import { getCartItemCount } from '../../store/slices/cartSlice';
+// REMOVED: fetchCart, fetchWishlist imports - App.jsx handles these to prevent duplicate calls
 import { setLanguage } from '../../store/slices/languageSlice';
 import { getTranslation } from '../../utils/translations';
 import { 
@@ -54,28 +54,9 @@ const Navbar = () => {
   
   const wishlistCount = wishlist?.items?.length || 0;
 
-  // Prevent multiple simultaneous API calls with a ref
-  const hasInitialized = useRef(false);
-  const lastAuthState = useRef(isAuthenticated);
-  
-  useEffect(() => {
-    // Only initialize when auth state actually changes or on first mount
-    if (hasInitialized.current && lastAuthState.current === isAuthenticated) {
-      return;
-    }
-    
-    if (isAuthenticated) {
-      dispatch(fetchCart());
-      dispatch(fetchWishlist());
-    } else {
-      // Initialize guest cart if not authenticated
-      dispatch(initializeGuestCart());
-      dispatch(fetchCart());
-    }
-    
-    hasInitialized.current = true;
-    lastAuthState.current = isAuthenticated;
-  }, [isAuthenticated, dispatch]);
+  // REMOVED: Duplicate API calls - App.jsx already handles fetchCart/fetchWishlist on mount
+  // Navbar should only display data from Redux store, not fetch it
+  // This prevents duplicate API calls and improves performance
 
   // Close search dropdown when clicking outside
   useEffect(() => {

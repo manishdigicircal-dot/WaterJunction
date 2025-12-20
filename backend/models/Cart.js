@@ -45,6 +45,11 @@ cartSchema.virtual('totalItems').get(function() {
   return this.items.reduce((sum, item) => sum + item.quantity, 0);
 });
 
+// PERFORMANCE: Add index on user field for faster queries
+cartSchema.index({ user: 1 });
+cartSchema.index({ 'items.product': 1 }); // For product lookups
+cartSchema.index({ lastUpdated: -1 }); // For sorting
+
 const Cart = mongoose.model('Cart', cartSchema);
 
 export default Cart;

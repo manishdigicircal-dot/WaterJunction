@@ -6,6 +6,7 @@ import Category from '../models/Category.js';
 import Coupon from '../models/Coupon.js';
 import Review from '../models/Review.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
+import { getCachedAdminStats, setCachedAdminStats, clearAdminStatsCache } from '../utils/cache.js';
 import csvParser from 'csv-parser';
 import csvWriter from 'csv-writer';
 import { Readable } from 'stream';
@@ -17,10 +18,20 @@ router.use(protect);
 router.use(admin);
 
 // @route   GET /api/admin/stats
-// @desc    Get dashboard statistics
+// @desc    Get dashboard statistics (CACHED for 5 minutes - stats don't need to be real-time)
 // @access  Private/Admin
 router.get('/stats', async (req, res) => {
   try {
+    // PERFORMANCE: Check cache first - admin stats don't need real-time updates
+    const cachedStats = getCachedAdminStats();
+    if (cachedStats) {
+      res.set({
+        'Cache-Control': 'private, max-age=300', // 5 minutes
+        'X-Cache': 'HIT'
+      });
+      return res.json({ success: true, stats: cachedStats });
+    }
+
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfDay = new Date(now);
@@ -189,25 +200,32 @@ router.get('/stats', async (req, res) => {
       orders: item.orders
     }));
 
-    res.json({
-      success: true,
-      stats: {
-        users: totalUsers,
-        products: totalProducts,
-        orders: totalOrders,
-        categories: totalCategories,
-        revenue: {
-          total: totalRevenue,
-          monthly: monthlyRevenue,
-          today: todayRevenue
-        },
-        orderStats,
-        topProducts,
-        recentOrders,
-        revenueChart,
-        orderChart
-      }
+    const statsData = {
+      users: totalUsers,
+      products: totalProducts,
+      orders: totalOrders,
+      categories: totalCategories,
+      revenue: {
+        total: totalRevenue,
+        monthly: monthlyRevenue,
+        today: todayRevenue
+      },
+      orderStats,
+      topProducts,
+      recentOrders,
+      revenueChart,
+      orderChart
+    };
+
+    // PERFORMANCE: Cache the result for 5 minutes to avoid expensive recalculations
+    setCachedAdminStats(statsData);
+
+    res.set({
+      'Cache-Control': 'private, max-age=300', // 5 minutes
+      'X-Cache': 'MISS'
     });
+
+    res.json({ success: true, stats: statsData });
   } catch (error) {
     console.error('Admin stats error:', error);
     res.status(500).json({ 

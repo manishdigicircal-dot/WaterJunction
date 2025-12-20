@@ -22,6 +22,10 @@ const wishlistSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// PERFORMANCE: Add index on user field for faster queries
+wishlistSchema.index({ user: 1 });
+wishlistSchema.index({ 'items.product': 1 }); // For product lookups
+
 const Wishlist = mongoose.model('Wishlist', wishlistSchema);
 
 export default Wishlist;
