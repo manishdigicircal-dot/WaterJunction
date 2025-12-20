@@ -102,12 +102,12 @@ router.get('/', [
       .skip(skip)
       .limit(limit)
       .lean()
-      .maxTimeMS(5000);
+      .maxTimeMS(15000); // 15 seconds for query timeout
     
     // Execute queries in parallel for better performance
     const [productsData, total] = await Promise.all([
       productsQuery,
-      Product.countDocuments(filter).maxTimeMS(5000)
+      Product.countDocuments(filter).maxTimeMS(15000)
     ]);
     
     // Optimize products: Only send first image to reduce payload size dramatically
