@@ -222,7 +222,7 @@ const ThankYou = () => {
           <div className="grid md:grid-cols-4 gap-8">
             <div>
               <h3 className="text-xl font-bold mb-4">WaterJunction</h3>
-              <p className="text-gray-400">Your trusted partner for pure water solutions.</p>
+              <p className="text-gray-400">Your trusted partner for pure complete water solutions.</p>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Quick Links</h4>

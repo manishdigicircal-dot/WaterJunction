@@ -265,8 +265,8 @@ const Footer = () => {
         <div className="border-t border-gray-700/50 pt-8 mt-8">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <p className="text-gray-400 text-sm text-center md:text-left">
-              &copy; {new Date().getFullYear()} <span className="text-cyan-400 font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">WaterJunction</span>. All rights reserved. | Designed & Developed with ❤️ by 
-<a href="https://digicircal.com" target="_blank" rel="noopener">Digicircal</a>
+              &copy; {new Date().getFullYear()} <span className="text-cyan-400 font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">WaterJunction</span>. All rights reserved. | Designed & Developed with ❤️ by  
+<a href="https://digicircal.com" target="_blank" rel="noopener"> Digicircal</a>
             </p>
             <div className="flex items-center flex-wrap justify-center gap-4 md:gap-6 text-sm">
               <Link to="/privacy" className="text-gray-400 hover:text-cyan-400 transition-colors duration-300 hover:underline font-medium">

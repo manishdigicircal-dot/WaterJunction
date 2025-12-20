@@ -52,7 +52,7 @@ const Home = () => {
       name: 'Rajesh Kumar',
       location: 'Delhi, India',
       initials: 'RK',
-      text: "Water Junction has completely transformed our water quality! The products are premium and delivery is super fast. Highly recommend to everyone looking for pure, healthy water solutions.",
+      text: "Water Junction has completely transformed our water quality! The products are premium and delivery is super fast. Highly recommend to everyone looking for pure, healthy complete water solutions.",
       gradient: 'from-cyan-400 to-blue-500',
       ring: 'ring-cyan-200'
     },
@@ -210,7 +210,7 @@ const Home = () => {
               </h2>
             </div>
             <p className="text-gray-600 text-sm md:text-base max-w-xl mx-auto mt-1">
-              Handpicked premium super water solutions just for you
+              Handpicked premium complete water solutions just for you
             </p>
             <div className="mt-2 flex items-center justify-center space-x-2">
               <div className="h-0.5 w-8 bg-gradient-to-r from-transparent to-primary-500"></div>
