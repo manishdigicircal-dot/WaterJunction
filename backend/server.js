@@ -36,7 +36,58 @@ const app = express();
 app.set('trust proxy', 1);
 // Middleware
 app.use(compression()); // Enable gzip compression for all responses
-app.use(helmet());
+
+// Configure Helmet with appropriate CSP for Razorpay and API access
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'", // Needed for inline scripts
+        "'unsafe-eval'", // Needed for some React/Vite scripts
+        "https://checkout.razorpay.com", // Razorpay checkout script
+        "https://js.stripe.com" // In case Stripe is used later
+      ],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'", // Needed for inline styles
+        "https://fonts.googleapis.com"
+      ],
+      fontSrc: [
+        "'self'",
+        "https://fonts.gstatic.com",
+        "data:"
+      ],
+      imgSrc: [
+        "'self'",
+        "data:",
+        "blob:",
+        "https:", // Allow all HTTPS images (for Cloudinary, CDNs, etc.)
+        "http://localhost:*" // Allow localhost images in development
+      ],
+      connectSrc: [
+        "'self'", // Same origin (frontend and backend on same domain)
+        "https://waterjunction.onrender.com", // Production domain
+        "http://localhost:5000", // Development backend
+        "http://localhost:5173", // Development frontend
+        "https://api.razorpay.com", // Razorpay API
+        "https://checkout.razorpay.com",
+        "ws://localhost:*", // WebSocket for dev
+        "wss://*" // WebSocket secure for production
+      ],
+      frameSrc: [
+        "'self'",
+        "https://checkout.razorpay.com", // Razorpay checkout iframe
+        "https://js.stripe.com"
+      ],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
+    }
+  },
+  crossOriginEmbedderPolicy: false // Allow embedding Razorpay checkout
+}));
+
 app.use(morgan('dev'));
 // app.use(cors({
 //   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
