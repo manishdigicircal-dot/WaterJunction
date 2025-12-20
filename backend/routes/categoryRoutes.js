@@ -5,6 +5,7 @@ import Category from '../models/Category.js';
 import User from '../models/User.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import { uploadCategoryFiles, uploadToCloudinary } from '../utils/upload.js';
+import { getCachedCategories, setCachedCategories, clearCategoriesCache } from '../utils/cache.js';
 
 const router = express.Router();
 
@@ -16,17 +17,19 @@ router.get('/', async (req, res) => {
     // For public access, only show active categories
     // Admin panel should access via /api/admin/categories or we check token here
     let filter = { isActive: true };
+    let isAdmin = false;
     
     // If authorization header exists, try to verify if it's an admin
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       try {
         const token = req.headers.authorization.split(' ')[1];
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id);
+        const user = await User.findById(decoded.id).lean();
         
         if (user && user.role === 'admin') {
           // Admin can see all categories (including inactive)
           filter = {};
+          isAdmin = true;
         }
       } catch (err) {
         // If token verification fails, treat as public access
@@ -34,9 +37,37 @@ router.get('/', async (req, res) => {
       }
     }
     
-    const categories = await Category.find(filter)
+    // Use cache for public (non-admin) requests
+    let categories;
+    if (!isAdmin) {
+      categories = getCachedCategories();
+      if (categories) {
+        return res.json({ success: true, categories });
+      }
+    }
+    
+    // Use lean() for better performance on read-only queries
+    categories = await Category.find(filter)
+      .select('name slug image description order isActive parentCategory')
       .sort({ order: 1, name: 1 })
-      .populate('parentCategory', 'name slug');
+      .populate({
+        path: 'parentCategory',
+        select: 'name slug',
+        options: { lean: true }
+      })
+      .lean()
+      .maxTimeMS(3000); // Timeout after 3 seconds
+    
+    // Cache for public requests
+    if (!isAdmin) {
+      setCachedCategories(categories);
+    }
+    
+    // Set cache headers for better performance
+    res.set({
+      'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
+      'ETag': `"categories-${categories.length}"`
+    });
     
     res.json({ success: true, categories });
   } catch (error) {
@@ -105,6 +136,9 @@ router.post('/', protect, admin, uploadCategoryFiles.single('image'), async (req
       order: req.body.order || 0
     });
 
+    // Clear cache when category is created
+    clearCategoriesCache();
+
     res.status(201).json({ success: true, category });
   } catch (error) {
     console.error('Category creation error:', error);
@@ -155,6 +189,9 @@ router.put('/:id', protect, admin, uploadCategoryFiles.single('image'), async (r
       { new: true, runValidators: true }
     );
 
+    // Clear cache when category is updated
+    clearCategoriesCache();
+
     res.json({ success: true, category: updatedCategory });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -172,6 +209,10 @@ router.delete('/:id', protect, admin, async (req, res) => {
     }
 
     await category.deleteOne();
+    
+    // Clear cache when category is deleted
+    clearCategoriesCache();
+    
     res.json({ success: true, message: 'Category deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });

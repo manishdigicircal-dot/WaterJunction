@@ -177,14 +177,24 @@ productSchema.pre('save', function(next) {
   next();
 });
 
-// Index for search - using partial index to avoid length issues
-// MongoDB text index has limits, but we'll use it anyway
-// If text search fails due to length, we can use regex search instead
-productSchema.index({ name: 'text', description: 'text' }, { 
-  weights: { name: 10, description: 5 },
-  name: 'text_index'
-});
+// Performance indexes for common queries
+// Compound index for category + isActive (most common filter)
 productSchema.index({ category: 1, isActive: 1 });
+
+// Index for sorting by price
+productSchema.index({ price: 1 });
+
+// Index for sorting by ratings
+productSchema.index({ 'ratings.average': -1 });
+
+// Index for sorting by date
+productSchema.index({ createdAt: -1 });
+
+// Index for name search (regex queries)
+productSchema.index({ name: 1 });
+
+// Index for isActive filter
+productSchema.index({ isActive: 1 });
 
 const Product = mongoose.model('Product', productSchema);
 

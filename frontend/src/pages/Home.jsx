@@ -1,45 +1,40 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { getTranslation } from '../utils/translations';
 import { FiShoppingCart, FiHeart, FiStar, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
-import { useDispatch } from 'react-redux';
 import { addToCart } from '../store/slices/cartSlice';
 import { addToWishlist } from '../store/slices/wishlistSlice';
+import { fetchCategories, fetchFeaturedProducts } from '../store/slices/dataSlice';
 import toast from 'react-hot-toast';
 import Carousel from '../components/Carousel';
 import FeaturesBar from '../components/FeaturesBar';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const Home = () => {
   const { language } = useSelector((state) => state.language);
   const { isAuthenticated } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
-  const [featuredProducts, setFeaturedProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Get data from Redux store with memoized selectors to prevent unnecessary rerenders
+  const categories = useSelector((state) => state.data.categories || []);
+  const featuredProducts = useSelector((state) => state.data.featuredProducts || []);
+  const categoriesLoading = useSelector((state) => state.data.loading.categories);
+  const productsLoading = useSelector((state) => state.data.loading.featuredProducts);
+  const hasCategories = useSelector((state) => !!state.data.categories && state.data.categories.length > 0);
+  const hasProducts = useSelector((state) => !!state.data.featuredProducts && state.data.featuredProducts.length > 0);
+  
+  // Only show loading if both are loading AND we don't have cached data
+  const loading = (categoriesLoading && !hasCategories) || (productsLoading && !hasProducts);
+  
   const [testimonialIndex, setTestimonialIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
 
+  // Fetch data only once on mount, Redux will handle caching
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [productsRes, categoriesRes] = await Promise.all([
-          axios.get(`${API_URL}/products?limit=8`),
-          axios.get(`${API_URL}/categories`)
-        ]);
-        setFeaturedProducts(productsRes.data.products || []);
-        setCategories(categoriesRes.data.categories || []);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+    // Always dispatch - Redux thunk will handle cache check internally
+    dispatch(fetchCategories());
+    dispatch(fetchFeaturedProducts(8));
+  }, [dispatch]);
 
   // Detect screen size for responsive testimonials
   useEffect(() => {
@@ -215,7 +210,7 @@ const Home = () => {
               </h2>
             </div>
             <p className="text-gray-600 text-sm md:text-base max-w-xl mx-auto mt-1">
-              Handpicked premium water solutions just for you
+              Handpicked premium super water solutions just for you
             </p>
             <div className="mt-2 flex items-center justify-center space-x-2">
               <div className="h-0.5 w-8 bg-gradient-to-r from-transparent to-primary-500"></div>

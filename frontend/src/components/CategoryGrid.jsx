@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { useSelector, useDispatch } from 'react-redux';
+import { fetchCategories } from '../store/slices/dataSlice';
 import { 
   FiDroplet, 
   FiFilter, 
@@ -10,12 +11,13 @@ import {
   FiPackage
 } from 'react-icons/fi';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
 const CategoryGrid = () => {
   const navigate = useNavigate();
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch();
+  
+  // Get categories from Redux store with separate selectors to prevent rerenders
+  const allCategories = useSelector((state) => state.data.categories || []);
+  const loading = useSelector((state) => state.data.loading.categories);
 
   // Category mapping - name to icon and color
   const categoryConfig = {
@@ -51,71 +53,67 @@ const CategoryGrid = () => {
     }
   };
 
+  // Fetch categories only once, Redux will handle caching
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    dispatch(fetchCategories());
+  }, [dispatch]);
 
-  const fetchCategories = async () => {
-    try {
-      const { data } = await axios.get(`${API_URL}/categories`);
-      const allCategories = data.categories || [];
-      
-      // Map categories based on name matching
-      const mappedCategories = [];
-      const categoryOrder = [
-        'Water Purifier',
-        'Water Softener',
-        'Water Dispenser',
-        'Water Heater',
-        'Kitchen Appliances',
-        'Water Purifier Accessories'
-      ];
+  // Map categories based on name matching - memoized to avoid recalculation
+  const mappedCategories = useMemo(() => {
+    if (!allCategories || allCategories.length === 0) {
+      return [];
+    }
 
-      categoryOrder.forEach(categoryName => {
-        const config = categoryConfig[categoryName];
-        if (config) {
-          // Find matching category from API
-          const matchedCategory = allCategories.find(cat => {
-            const catNameLower = cat.name.toLowerCase();
-            return config.keywords.some(keyword => 
-              catNameLower.includes(keyword.toLowerCase())
-            );
+    const mapped = [];
+    const categoryOrder = [
+      'Water Purifier',
+      'Water Softener',
+      'Water Dispenser',
+      'Water Heater',
+      'Kitchen Appliances',
+      'Water Purifier Accessories'
+    ];
+
+    categoryOrder.forEach(categoryName => {
+      const config = categoryConfig[categoryName];
+      if (config) {
+        // Find matching category from API
+        const matchedCategory = allCategories.find(cat => {
+          const catNameLower = cat.name.toLowerCase();
+          return config.keywords.some(keyword => 
+            catNameLower.includes(keyword.toLowerCase())
+          );
+        });
+
+        if (matchedCategory) {
+          mapped.push({
+            ...matchedCategory,
+            icon: config.icon,
+            color: config.color,
+            displayName: categoryName === 'Water Heater' ? 'Water Heater (Geyser)' : categoryName
           });
+        }
+      }
+    });
 
-          if (matchedCategory) {
-            mappedCategories.push({
-              ...matchedCategory,
-              icon: config.icon,
-              color: config.color,
-              displayName: categoryName === 'Water Heater' ? 'Water Heater (Geyser)' : categoryName
-            });
-          }
+    // If we don't have all 6, add remaining from API
+    if (mapped.length < 6 && allCategories.length > 0) {
+      allCategories.forEach(cat => {
+        if (!mapped.find(m => m._id === cat._id) && mapped.length < 6) {
+          mapped.push({
+            ...cat,
+            icon: FiPackage,
+            color: 'from-gray-500 to-gray-600',
+            displayName: cat.name
+          });
         }
       });
-
-      // If we don't have all 6, add remaining from API
-      if (mappedCategories.length < 6 && allCategories.length > 0) {
-        allCategories.forEach(cat => {
-          if (!mappedCategories.find(m => m._id === cat._id) && mappedCategories.length < 6) {
-            mappedCategories.push({
-              ...cat,
-              icon: FiPackage,
-              color: 'from-gray-500 to-gray-600',
-              displayName: cat.name
-            });
-          }
-        });
-      }
-
-      setCategories(mappedCategories.slice(0, 6));
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      // Fallback to default categories if API fails
-      setCategories([]);
-    } finally {
-      setLoading(false);
     }
-  };
+
+    return mapped.slice(0, 6);
+  }, [allCategories]);
+
+  const categories = mappedCategories;
 
   if (loading) {
     return (

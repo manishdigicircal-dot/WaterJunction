@@ -40,11 +40,7 @@ router.get('/', [
     if (req.query.category) {
       // Validate and convert to ObjectId
       if (mongoose.Types.ObjectId.isValid(req.query.category)) {
-        const categoryId = new mongoose.Types.ObjectId(req.query.category);
-        // Use ObjectId for proper matching
-        filter.category = categoryId;
-        console.log('Filtering by category:', req.query.category);
-        console.log('Category ObjectId:', categoryId.toString());
+        filter.category = new mongoose.Types.ObjectId(req.query.category);
       } else {
         return res.status(400).json({ 
           success: false,
@@ -59,8 +55,13 @@ router.get('/', [
       if (req.query.maxPrice) filter.price.$lte = parseFloat(req.query.maxPrice);
     }
 
+    // Use regex for search instead of text search for better performance
     if (req.query.search) {
-      filter.$text = { $search: req.query.search };
+      const searchRegex = new RegExp(req.query.search, 'i');
+      filter.$or = [
+        { name: searchRegex },
+        { description: searchRegex }
+      ];
     }
 
     // Build sort
@@ -84,52 +85,43 @@ router.get('/', [
       default:
         sort = { createdAt: -1 };
     }
-
-    console.log('Product filter:', {
-      isActive: filter.isActive,
-      category: filter.category ? filter.category.toString() : 'none'
-    });
     
-    // Debug: Check if any products exist with this category
-    if (filter.category) {
-      const testProducts = await Product.find({ category: filter.category }).limit(5);
-      console.log(`Found ${testProducts.length} products with category ${filter.category.toString()} (without isActive filter)`);
-      if (testProducts.length > 0) {
-        console.log('Sample product:', {
-          id: testProducts[0]._id,
-          name: testProducts[0].name,
-          category: testProducts[0].category.toString(),
-          isActive: testProducts[0].isActive
-        });
-      }
-    }
+    // Select only needed fields - exclude heavy fields like description, specifications, etc.
+    // IMPORTANT: Only send first image to reduce payload size (images can be huge if base64)
+    const fieldsToSelect = 'name slug images price mrp discountPercent stock ratings category isFeatured createdAt';
     
-    const products = await Product.find(filter)
-      .populate('category', 'name slug')
+    // Build query with optimizations
+    const productsQuery = Product.find(filter)
+      .select(fieldsToSelect)
+      .populate({
+        path: 'category',
+        select: 'name slug',
+        options: { lean: true }
+      })
       .sort(sort)
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean()
+      .maxTimeMS(5000);
+    
+    // Execute queries in parallel for better performance
+    const [productsData, total] = await Promise.all([
+      productsQuery,
+      Product.countDocuments(filter).maxTimeMS(5000)
+    ]);
+    
+    // Optimize products: Only send first image to reduce payload size dramatically
+    // Base64 images can be 100KB+ each, so 8 products with multiple images = huge payload
+    const products = productsData.map(product => ({
+      ...product,
+      images: product.images && product.images.length > 0 ? [product.images[0]] : []
+    }));
 
-    const total = await Product.countDocuments(filter);
-    
-    console.log(`Found ${products.length} products (total: ${total}) for filter`);
-    
-    // Debug: Log first product's category if any products found
-    if (products.length > 0 && products[0].category) {
-      console.log('Sample product category:', {
-        id: products[0].category._id?.toString(),
-        name: products[0].category.name
-      });
-    } else if (filter.category) {
-      console.log('No products found. Checking all products...');
-      const allProducts = await Product.find({}).limit(3);
-      console.log('Sample products in database:', allProducts.map(p => ({
-        id: p._id,
-        name: p.name,
-        category: p.category?.toString(),
-        isActive: p.isActive
-      })));
-    }
+    // Set cache headers for better performance
+    res.set({
+      'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
+      'ETag': `"${Date.now()}-${total}"` // ETag for cache validation
+    });
 
     res.json({
       success: true,

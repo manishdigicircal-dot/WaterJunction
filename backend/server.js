@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
 
 // Import Routes
 import authRoutes from './routes/authRoutes.js';
@@ -29,6 +30,7 @@ dotenv.config();
 const app = express();
 app.set('trust proxy', 1);
 // Middleware
+app.use(compression()); // Enable gzip compression for all responses
 app.use(helmet());
 app.use(morgan('dev'));
 // app.use(cors({
@@ -101,11 +103,12 @@ app.use(errorHandler);
 const mongoUri =
   process.env.MONGO_URI || 'mongodb://localhost:27017/water';
 
-mongoose.connect(mongoUri)
-
-
-
-
+// MongoDB connection options for better performance
+mongoose.connect(mongoUri, {
+  maxPoolSize: 10, // Maintain up to 10 socket connections
+  serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+})
 .then(() => {
   console.log('✅ MongoDB Connected Successfully');
   

@@ -49,6 +49,11 @@ categorySchema.pre('save', function(next) {
   next();
 });
 
+// Performance indexes
+categorySchema.index({ isActive: 1, order: 1 });
+categorySchema.index({ slug: 1 });
+categorySchema.index({ name: 1 });
+
 const Category = mongoose.model('Category', categorySchema);
 
 export default Category;
