@@ -27,30 +27,31 @@ router.get('/stats', async (req, res) => {
     startOfDay.setHours(0, 0, 0, 0);
 
     // Use aggregation for revenue calculations - MUCH faster than loading all orders
-    const [totalRevenueResult] = await Order.aggregate([
-      { $match: { paymentStatus: 'paid' } },
-      { $group: { _id: null, total: { $sum: '$total' } } }
-    ]).maxTimeMS(10000);
-
-    const [monthlyRevenueResult] = await Order.aggregate([
-      {
-        $match: {
-          paymentStatus: 'paid',
-          createdAt: { $gte: startOfMonth }
-        }
-      },
-      { $group: { _id: null, total: { $sum: '$total' } } }
-    ]).maxTimeMS(10000);
-
-    const [todayRevenueResult] = await Order.aggregate([
-      {
-        $match: {
-          paymentStatus: 'paid',
-          createdAt: { $gte: startOfDay }
-        }
-      },
-      { $group: { _id: null, total: { $sum: '$total' } } }
-    ]).maxTimeMS(10000);
+    // Execute all revenue aggregations in parallel
+    const [totalRevenueResult, monthlyRevenueResult, todayRevenueResult] = await Promise.all([
+      Order.aggregate([
+        { $match: { paymentStatus: 'paid' } },
+        { $group: { _id: null, total: { $sum: '$total' } } }
+      ], { maxTimeMS: 10000 }),
+      Order.aggregate([
+        {
+          $match: {
+            paymentStatus: 'paid',
+            createdAt: { $gte: startOfMonth }
+          }
+        },
+        { $group: { _id: null, total: { $sum: '$total' } } }
+      ], { maxTimeMS: 10000 }),
+      Order.aggregate([
+        {
+          $match: {
+            paymentStatus: 'paid',
+            createdAt: { $gte: startOfDay }
+          }
+        },
+        { $group: { _id: null, total: { $sum: '$total' } } }
+      ], { maxTimeMS: 10000 })
+    ]);
 
     const totalRevenue = totalRevenueResult?.total || 0;
     const monthlyRevenue = monthlyRevenueResult?.total || 0;
@@ -142,7 +143,7 @@ router.get('/stats', async (req, res) => {
             revenue: { $sum: '$total' }
           }
         }
-      ]).maxTimeMS(10000),
+      ], { maxTimeMS: 10000 }),
       Order.aggregate([
         {
           $match: {
@@ -158,7 +159,7 @@ router.get('/stats', async (req, res) => {
             orders: { $sum: 1 }
           }
         }
-      ]).maxTimeMS(10000)
+      ], { maxTimeMS: 10000 })
     ]);
     
     // Populate revenue data
