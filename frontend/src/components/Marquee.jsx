@@ -7,11 +7,7 @@ const Marquee = () => {
   // ✏️ CUSTOMIZE YOUR MARQUEE TEXT HERE - Easy to edit!
   // Add or remove items, change text, add icons
   const marqueeItems = [
-    { text: 'Buy 2 Get 2 Gifts', icon: <FiGift className="w-4 h-4" /> },
     { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
-    { text: 'Offers automatically applied at checkout', icon: null },
-    { text: 'Buy 4 @1099', icon: <FiShoppingBag className="w-4 h-4" /> },
-    { text: 'Extra 3% Off on Prepaid', icon: <FiPercent className="w-4 h-4" /> },
   ];
 
   // Duplicate items for seamless infinite loop

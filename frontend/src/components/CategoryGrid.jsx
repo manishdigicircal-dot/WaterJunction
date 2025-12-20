@@ -121,9 +121,11 @@ const CategoryGrid = () => {
         <div className="container mx-auto px-3 md:px-4">
           <div className="grid grid-cols-3 md:grid-cols-6 gap-2 md:gap-3">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="flex flex-col items-center justify-center p-2 md:p-3 bg-white rounded-lg md:rounded-xl shadow-sm animate-pulse">
-                <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gray-200 mb-1.5 md:mb-2"></div>
-                <div className="h-3 w-16 bg-gray-200 rounded"></div>
+              <div key={i} className="relative p-[2px] rounded-lg md:rounded-xl bg-gradient-to-br from-blue-400 via-blue-500 to-cyan-500 animate-pulse">
+                <div className="flex flex-col items-center justify-center p-2 md:p-3 bg-white rounded-lg md:rounded-xl">
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gray-200 mb-1.5 md:mb-2"></div>
+                  <div className="h-3 w-16 bg-gray-200 rounded"></div>
+                </div>
               </div>
             ))}
           </div>
@@ -139,22 +141,25 @@ const CategoryGrid = () => {
           {categories.map((category, index) => {
             const IconComponent = category.icon || FiPackage;
             return (
-              <button
+              <div
                 key={`${category._id || 'cat'}-${index}`}
-                onClick={() => {
-                  navigate(`/products?category=${category._id}`, { replace: false });
-                  // Force a re-render by scrolling to top
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="group flex flex-col items-center justify-center p-2 md:p-3 bg-white rounded-lg md:rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 border border-gray-100 hover:border-primary-300 cursor-pointer"
+                className="relative p-[2px] rounded-lg md:rounded-xl bg-gradient-to-br from-blue-400 via-blue-500 to-cyan-500 hover:from-blue-500 hover:via-cyan-500 hover:to-blue-600 transition-all duration-300 transform hover:-translate-y-1 shadow-sm hover:shadow-xl"
               >
-                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br ${category.color || 'from-gray-500 to-gray-600'} flex items-center justify-center mb-1.5 md:mb-2 group-hover:scale-110 transition-transform duration-300 shadow-md group-hover:shadow-lg`}>
-                  <IconComponent className="w-5 h-5 md:w-6 md:h-6 text-white" />
-                </div>
-                <span className="text-[10px] md:text-xs font-medium text-gray-700 group-hover:text-primary-600 text-center leading-tight transition-colors duration-300 line-clamp-2">
-                  {category.displayName || category.name}
-                </span>
-              </button>
+                <button
+                  onClick={() => {
+                    navigate(`/products?category=${category._id}`, { replace: false });
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="group w-full h-full flex flex-col items-center justify-center p-2 md:p-3 bg-white rounded-lg md:rounded-xl cursor-pointer"
+                >
+                  <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br ${category.color || 'from-gray-500 to-gray-600'} flex items-center justify-center mb-1.5 md:mb-2 group-hover:scale-110 transition-transform duration-300 shadow-md group-hover:shadow-lg ring-2 ring-blue-100 group-hover:ring-blue-300`}>
+                    <IconComponent className="w-5 h-5 md:w-6 md:h-6 text-white" />
+                  </div>
+                  <span className="text-[10px] md:text-xs font-medium text-gray-700 group-hover:text-blue-600 text-center leading-tight transition-colors duration-300 line-clamp-2">
+                    {category.displayName || category.name}
+                  </span>
+                </button>
+              </div>
             );
           })}
         </div>
