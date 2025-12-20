@@ -8,6 +8,17 @@ const Marquee = () => {
   // Add or remove items, change text, add icons
   const marqueeItems = [
     { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
+    { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
+    { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
+    { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
+    { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
+    { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
+    { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
+    { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
+    { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
+    { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
+    { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
+    { text: 'Best Price Guaranteed', icon: <FiShoppingBag className="w-4 h-4" /> },
   ];
 
   // Duplicate items for seamless infinite loop
