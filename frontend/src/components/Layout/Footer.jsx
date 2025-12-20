@@ -251,7 +251,7 @@ const Footer = () => {
                   <p className="text-sm text-gray-300 leading-relaxed">
                     Ground Floor, Khasra No - 146,<br />
                     Dudeshwar Enclave, Vill - Chipiana Tigri,
-                    Opposite - 14th Avenue, Gaur City,<br />
+                    Opposite - 14th Avenue, Gaur City,
                     Gautam Buddha Nagar,
                     Uttar Pradesh, 201301
                   </p>

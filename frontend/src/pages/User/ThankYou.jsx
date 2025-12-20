@@ -254,7 +254,9 @@ const ThankYou = () => {
             </div>
           </div>
           <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; {new Date().getFullYear()} WaterJunction. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} WaterJunction. All rights reserved. | Designed & Developed with ❤️ by 
+<a href="https://digicircal.com" target="_blank" rel="noopener">Digicircal</a>
+</p>
           </div>
         </div>
       </footer>
