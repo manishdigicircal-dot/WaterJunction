@@ -4,6 +4,7 @@ import { API_URL } from './api.js';
 const axiosInstance = axios.create({
   baseURL: API_URL,
   withCredentials: true, // ✅ IMPORTANT for cookies & auth
+  timeout: 30000, // 30 seconds timeout for all requests
   headers: {
     'Content-Type': 'application/json'
   }
@@ -25,6 +26,10 @@ axiosInstance.interceptors.request.use(
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      console.error('Request timeout:', error.config?.url);
+      // Don't reject timeout errors immediately, let the caller handle retry logic
+    }
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');

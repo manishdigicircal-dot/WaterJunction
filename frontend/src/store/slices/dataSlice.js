@@ -42,7 +42,7 @@ export const fetchCategories = createAsyncThunk(
       // Create a promise that wraps the axios call and transforms the response
       categoriesPromise = (async () => {
         const response = await axios.get(`${API_URL}/categories`, {
-          timeout: 5000,
+          timeout: 30000, // 30 seconds
           headers: {
             'Cache-Control': 'no-cache'
           }
@@ -95,7 +95,7 @@ export const fetchFeaturedProducts = createAsyncThunk(
       // Create a promise that wraps the axios call and transforms the response
       featuredProductsPromise = (async () => {
         const response = await axios.get(`${API_URL}/products?limit=${limit}`, {
-          timeout: 5000,
+          timeout: 30000, // 30 seconds
           headers: {
             'Cache-Control': 'no-cache'
           }
