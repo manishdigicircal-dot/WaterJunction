@@ -10,7 +10,7 @@ const categorySchema = new mongoose.Schema({
   slug: {
     type: String,
     required: true,
-    unique: true,
+    unique: true, // unique:true automatically creates an index
     lowercase: true
   },
   description: {
@@ -49,10 +49,9 @@ categorySchema.pre('save', function(next) {
   next();
 });
 
-// Performance indexes
+// Performance indexes (removed slug and name since unique:true already creates indexes)
 categorySchema.index({ isActive: 1, order: 1 });
-categorySchema.index({ slug: 1 });
-categorySchema.index({ name: 1 });
+// Note: slug and name already have indexes from unique:true, no need to duplicate
 
 const Category = mongoose.model('Category', categorySchema);
 

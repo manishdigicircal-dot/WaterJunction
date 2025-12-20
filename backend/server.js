@@ -7,6 +7,11 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Import Routes
 import authRoutes from './routes/authRoutes.js';
@@ -89,7 +94,29 @@ app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/contact', contactRoutes);
 
-// Error Handlers
+// Serve static files from frontend build (production only)
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '../frontend/dist');
+  
+  // Serve static assets (JS, CSS, images, etc.)
+  app.use(express.static(frontendPath));
+
+  // Catch all handler: send back React's index.html file for any non-API routes
+  // This must come AFTER all API routes
+  app.get('*', (req, res, next) => {
+    // Don't serve index.html for API routes
+    if (req.path.startsWith('/api')) {
+      return next(); // Let it fall through to notFound handler
+    }
+    res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
+      if (err) {
+        next(err);
+      }
+    });
+  });
+}
+
+// Error Handlers (must be last)
 app.use(notFound);
 app.use(errorHandler);
 
