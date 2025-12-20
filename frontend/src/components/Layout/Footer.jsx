@@ -88,16 +88,7 @@ const Footer = () => {
                 <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors"></div>
                 <FiFacebook className="w-5 h-5 relative z-10" />
               </a>
-              <a 
-                href="https://x.com/WaterJunctionro" 
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group relative w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center hover:scale-110 hover:rotate-3 transition-all duration-300 shadow-lg hover:shadow-slate-500/50 border border-slate-600/30 overflow-hidden"
-                aria-label="Twitter"
-              >
-                <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors"></div>
-                <FiTwitter className="w-5 h-5 relative z-10" />
-              </a>
+              
               <a 
                 href="https://www.instagram.com/waterjunction/" 
                 target="_blank"
@@ -108,36 +99,9 @@ const Footer = () => {
                 <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors"></div>
                 <FiInstagram className="w-5 h-5 relative z-10" />
               </a>
-              <a 
-                href="https://youtu.be/mGMWTCV4dZU" 
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group relative w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-700 flex items-center justify-center hover:scale-110 hover:rotate-3 transition-all duration-300 shadow-lg hover:shadow-red-500/50 border border-red-500/30 overflow-hidden"
-                aria-label="YouTube"
-              >
-                <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors"></div>
-                <FiYoutube className="w-5 h-5 relative z-10" />
-              </a>
-              <a 
-                href="https://in.pinterest.com/suresgymnast/" 
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group relative w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center hover:scale-110 hover:rotate-3 transition-all duration-300 shadow-lg hover:shadow-red-500/50 border border-red-500/30 overflow-hidden"
-                aria-label="Pinterest"
-              >
-                <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors"></div>
-                <FaPinterest className="w-5 h-5 relative z-10" />
-              </a>
-              <a 
-                href="https://www.linkedin.com/company/water-junction/" 
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group relative w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center hover:scale-110 hover:rotate-3 transition-all duration-300 shadow-lg hover:shadow-blue-500/50 border border-blue-500/30 overflow-hidden"
-                aria-label="LinkedIn"
-              >
-                <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors"></div>
-                <FaLinkedin className="w-5 h-5 relative z-10" />
-              </a>
+              
+              
+              
             </div>
           </div>
 
@@ -286,9 +250,9 @@ const Footer = () => {
                   <p className="text-xs text-gray-400 mb-1 uppercase tracking-wider font-semibold">Address</p>
                   <p className="text-sm text-gray-300 leading-relaxed">
                     Ground Floor, Khasra No - 146,<br />
-                    Dudeshwar Enclave, Vill - Chipiana Tigri,<br />
+                    Dudeshwar Enclave, Vill - Chipiana Tigri,
                     Opposite - 14th Avenue, Gaur City,<br />
-                    Gautam Buddha Nagar,<br />
+                    Gautam Buddha Nagar,
                     Uttar Pradesh, 201301
                   </p>
                 </div>
