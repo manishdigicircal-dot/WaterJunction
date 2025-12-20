@@ -68,7 +68,9 @@ app.use(helmet({
       ],
       connectSrc: [
         "'self'", // Same origin (frontend and backend on same domain)
-        "https://waterjunction.onrender.com", // Production domain
+        "https://waterjunction.onrender.com", // Render backend domain
+        "https://water-junction.vercel.app", // Vercel frontend domain
+        "https://*.vercel.app", // All Vercel deployments
         "http://localhost:5000", // Development backend
         "http://localhost:5173", // Development frontend
         "https://api.razorpay.com", // Razorpay API
@@ -131,7 +133,9 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'WaterJunction API is running' });
 });
 
-// Routes
+// ============================================
+// API ROUTES - MUST BE BEFORE STATIC SERVING
+// ============================================
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -145,29 +149,34 @@ app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/contact', contactRoutes);
 
-// Serve static files from frontend build (production only)
-if (process.env.NODE_ENV === 'production') {
-  const frontendPath = path.join(__dirname, '../frontend/dist');
-  
-  // Serve static assets (JS, CSS, images, etc.)
-  app.use(express.static(frontendPath));
-
-  // Catch all handler: send back React's index.html file for any non-API routes
-  // This must come AFTER all API routes
-  app.get('*', (req, res, next) => {
-    // Don't serve index.html for API routes
-    if (req.path.startsWith('/api')) {
-      return next(); // Let it fall through to notFound handler
-    }
-    res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
-      if (err) {
-        next(err);
-      }
+// ============================================
+// 404 HANDLER for unmatched API routes - BEFORE static serving
+// ============================================
+app.use((req, res, next) => {
+  // If it's an API route and hasn't been handled, send 404 JSON
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ 
+      success: false,
+      message: `API route not found: ${req.method} ${req.path}` 
     });
+  }
+  next(); // Continue to next middleware (static serving or catch-all)
+});
+
+// ============================================
+// REACT FRONTEND SERVING - MUST BE AFTER ALL API ROUTES
+// ============================================
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
   });
 }
 
-// Error Handlers (must be last)
+// ============================================
+// ERROR HANDLERS - MUST BE ABSOLUTELY LAST
+// ============================================
 app.use(notFound);
 app.use(errorHandler);
 
