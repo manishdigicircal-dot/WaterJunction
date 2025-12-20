@@ -41,7 +41,10 @@ const AdminDashboard = () => {
       });
       setStats(data.stats);
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      // Only log actual errors, not cache write failures
+      if (error.code !== 'ERR_NETWORK' || error.response?.status !== 200) {
+        console.error('Error fetching stats:', error);
+      }
     } finally {
       setLoading(false);
     }

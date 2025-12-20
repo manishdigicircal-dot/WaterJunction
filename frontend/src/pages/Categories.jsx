@@ -20,7 +20,10 @@ const Categories = () => {
       const { data } = await axios.get(`${API_URL}/categories`);
       setCategories(data.categories || []);
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      // Only log actual errors, not cache write failures (these are browser cache issues)
+      if (!(error.code === 'ERR_NETWORK' && error.message?.includes('cache'))) {
+        console.error('Error fetching categories:', error);
+      }
     } finally {
       setLoading(false);
     }
