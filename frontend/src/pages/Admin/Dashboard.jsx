@@ -37,14 +37,19 @@ const AdminDashboard = () => {
   const fetchStats = async () => {
     try {
       const { data } = await axios.get(`${API_URL}/admin/stats`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        timeout: 30000 // 30 second timeout
       });
-      setStats(data.stats);
-    } catch (error) {
-      // Only log actual errors, not cache write failures
-      if (error.code !== 'ERR_NETWORK' || error.response?.status !== 200) {
-        console.error('Error fetching stats:', error);
+      if (data.success && data.stats) {
+        setStats(data.stats);
+      } else {
+        console.error('Invalid stats response:', data);
+        setStats(null);
       }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+      // Set stats to null to show error message
+      setStats(null);
     } finally {
       setLoading(false);
     }
@@ -62,7 +67,23 @@ const AdminDashboard = () => {
   }
 
   if (!stats) {
-    return <div className="text-center py-12">Failed to load dashboard</div>;
+    return (
+      <div className="text-center py-12">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+          <p className="text-red-800 font-semibold mb-2">Failed to load dashboard</p>
+          <p className="text-red-600 text-sm mb-4">Please refresh the page or try again later.</p>
+          <button
+            onClick={() => {
+              setLoading(true);
+              fetchStats();
+            }}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const statCards = [

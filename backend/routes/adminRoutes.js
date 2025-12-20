@@ -68,53 +68,60 @@ router.get('/stats', async (req, res) => {
     const monthlyRevenue = monthlyRevenueResult?.total || 0;
     const todayRevenue = todayRevenueResult?.total || 0;
 
-    // Execute all count queries in parallel for better performance
+    // PERFORMANCE: Use single aggregation for order status counts instead of multiple count queries
+    const [orderStatusCounts] = await Order.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ], { maxTimeMS: 5000 }).catch(() => []); // Return empty array if fails
+
+    // Convert aggregation result to object format
+    const orderStats = {
+      pending: 0,
+      paid: 0,
+      packed: 0,
+      shipped: 0,
+      delivered: 0,
+      cancelled: 0
+    };
+    orderStatusCounts.forEach(item => {
+      if (orderStats.hasOwnProperty(item._id)) {
+        orderStats[item._id] = item.count;
+      }
+    });
+
+    // PERFORMANCE: Execute remaining queries in parallel with optimized timeouts
     const [
       totalUsers,
       totalProducts,
       totalOrders,
       totalCategories,
-      orderStatsPending,
-      orderStatsPaid,
-      orderStatsPacked,
-      orderStatsShipped,
-      orderStatsDelivered,
-      orderStatsCancelled,
       topProducts,
       recentOrders
     ] = await Promise.all([
-      User.countDocuments().maxTimeMS(5000),
-      Product.countDocuments().maxTimeMS(5000),
-      Order.countDocuments().maxTimeMS(5000),
-      Category.countDocuments().maxTimeMS(5000),
-      Order.countDocuments({ status: 'pending' }).maxTimeMS(5000),
-      Order.countDocuments({ status: 'paid' }).maxTimeMS(5000),
-      Order.countDocuments({ status: 'packed' }).maxTimeMS(5000),
-      Order.countDocuments({ status: 'shipped' }).maxTimeMS(5000),
-      Order.countDocuments({ status: 'delivered' }).maxTimeMS(5000),
-      Order.countDocuments({ status: 'cancelled' }).maxTimeMS(5000),
+      User.countDocuments().maxTimeMS(3000).catch(() => 0),
+      Product.countDocuments().maxTimeMS(3000).catch(() => 0),
+      Order.countDocuments().maxTimeMS(3000).catch(() => 0),
+      Category.countDocuments().maxTimeMS(3000).catch(() => 0),
       Product.find()
         .sort({ sales: -1 })
         .limit(10)
-        .select('name images price sales')
+        .select('name price sales')
         .lean()
-        .maxTimeMS(5000),
+        .maxTimeMS(3000)
+        .catch(() => []),
       Order.find()
         .populate('user', 'name email')
         .sort({ createdAt: -1 })
         .limit(10)
+        .select('orderNumber total status user')
         .lean()
-        .maxTimeMS(5000)
+        .maxTimeMS(3000)
+        .catch(() => [])
     ]);
-
-    const orderStats = {
-      pending: orderStatsPending,
-      paid: orderStatsPaid,
-      packed: orderStatsPacked,
-      shipped: orderStatsShipped,
-      delivered: orderStatsDelivered,
-      cancelled: orderStatsCancelled
-    };
 
     // Generate monthly revenue chart data (last 12 months)
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
