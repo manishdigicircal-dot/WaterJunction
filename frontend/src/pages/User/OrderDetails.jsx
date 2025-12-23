@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { FiPrinter } from 'react-icons/fi';
 import { useReactToPrint } from 'react-to-print';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../../utils/api';
 
 const OrderDetails = () => {
   const { id } = useParams();

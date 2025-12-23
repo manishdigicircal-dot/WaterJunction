@@ -5,7 +5,7 @@ import { useSelector } from 'react-redux';
 import { getTranslation } from '../utils/translations';
 import { FiUser, FiMail, FiPhone, FiMessageSquare, FiMapPin, FiClock, FiSend } from 'react-icons/fi';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../utils/api';
 
 const Contact = () => {
   const { language } = useSelector((state) => state.language);

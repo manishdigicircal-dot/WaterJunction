@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { FiEdit2, FiTrash2, FiPlus, FiTag, FiClock, FiTrendingUp, FiPercent, FiGift, FiShield } from 'react-icons/fi';
 import { format } from 'date-fns';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../../utils/api';
 
 const AdminCoupons = () => {
   const [coupons, setCoupons] = useState([]);

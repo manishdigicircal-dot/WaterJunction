@@ -7,7 +7,7 @@ import { getTranslation } from '../../utils/translations';
 import { FiEdit2, FiTrash2, FiUser, FiMail, FiPhone, FiMapPin, FiPackage, FiHeart, FiShoppingCart, FiCheck, FiX, FiCamera, FiLoader } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../../utils/api';
 
 const Profile = () => {
   const dispatch = useDispatch();

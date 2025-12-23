@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { useSelector } from 'react-redux';
 import { getTranslation } from '../../utils/translations';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../../utils/api';
 
 const ResetPassword = () => {
   const { token } = useParams();
@@ -94,6 +94,7 @@ const ResetPassword = () => {
 };
 
 export default ResetPassword;
+
 
 
 

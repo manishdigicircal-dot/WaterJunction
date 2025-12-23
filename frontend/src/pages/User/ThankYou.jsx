@@ -5,7 +5,7 @@ import axios from 'axios';
 import { FiCheckCircle, FiPackage, FiTruck, FiHome, FiShoppingBag, FiUser, FiPhone, FiMapPin, FiMail } from 'react-icons/fi';
 // // Using native Date methods instead of date-fns // Removed date-fns dependency
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../../utils/api';
 
 const ThankYou = () => {
   const { orderId } = useParams();

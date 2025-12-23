@@ -15,7 +15,7 @@ import {
 import ReactToPrint from 'react-to-print';
 import { useRef } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../../utils/api';
 
 const statusColors = {
   pending: 'bg-amber-100 text-amber-700 border-amber-200',

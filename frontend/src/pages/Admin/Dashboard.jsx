@@ -23,8 +23,7 @@ import {
   FiClock,
   FiFolder
 } from 'react-icons/fi';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../../utils/api';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);

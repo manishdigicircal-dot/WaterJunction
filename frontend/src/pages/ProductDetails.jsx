@@ -25,7 +25,7 @@ import { FaWhatsapp, FaFacebook, FaTwitter, FaLinkedin } from 'react-icons/fa';
 import { MdEmail } from 'react-icons/md';
 import toast from 'react-hot-toast';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../utils/api';
 
 const ProductDetails = () => {
   const { id } = useParams();
