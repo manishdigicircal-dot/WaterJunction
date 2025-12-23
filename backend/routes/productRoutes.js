@@ -310,11 +310,19 @@ router.post('/', protect, admin, uploadProductFiles.fields([
       }
     }
 
+    // Remove images and video from productData to avoid conflicts - we'll set them separately
+    const { images: _, video: __, ...cleanProductData } = productData;
+
+    console.log('Creating product with images:', images.length);
+    console.log('Images preview:', images.slice(0, 1).map(img => img.substring(0, 80) + '...'));
+
     const product = await Product.create({
-      ...productData,
-      images,
-      video
+      ...cleanProductData,
+      images: images.length > 0 ? images : [], // Ensure images array is always set
+      video: video || ''
     });
+
+    console.log('Product created successfully with images:', product.images?.length || 0);
 
     res.status(201).json({ success: true, product });
   } catch (error) {
