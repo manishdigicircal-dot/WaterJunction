@@ -259,15 +259,19 @@ const seedData = async () => {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
       
+      const categoryImage = cat.image || '';
       const category = await Category.create({
         name: cat.name,
         slug: slug,
         description: cat.description,
-        image: cat.image || '',
+        image: categoryImage,
         order: categories.indexOf(cat)
       });
       createdCategories[cat.name] = category;
-      console.log(`✅ Category created: ${category.name}`);
+      console.log(`✅ Category created: ${category.name}${categoryImage ? ' (Has image)' : ' (No image)'}`);
+      if (categoryImage) {
+        console.log(`   Image URL: ${categoryImage.substring(0, 100)}...`);
+      }
     }
 
     // Create Products
@@ -296,16 +300,20 @@ const seedData = async () => {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
 
+      const productImages = prod.images || [];
       const product = await Product.create({
         ...prod,
         slug: slug,
         category: category._id,
         specifications: specs,
-        images: prod.images || [],
+        images: productImages,
         isActive: true,
         isFeatured: Math.random() > 0.5
       });
-      console.log(`✅ Product created: ${product.name}`);
+      console.log(`✅ Product created: ${product.name} (Images: ${productImages.length})`);
+      if (productImages.length > 0) {
+        console.log(`   Image URL: ${productImages[0].substring(0, 100)}...`);
+      }
     }
 
     // Create Coupons
