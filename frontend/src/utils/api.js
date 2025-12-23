@@ -4,6 +4,6 @@
 // In development, use localhost
 export const API_URL = import.meta.env.VITE_API_URL || 
   (import.meta.env.MODE === 'production' 
-    ? 'https://waterjunction.onrender.com/api' // Default to Render backend for production
+    ? '/api' // Use relative URL when frontend and backend are on same domain (VPS)
     : 'http://localhost:5000/api');
 
