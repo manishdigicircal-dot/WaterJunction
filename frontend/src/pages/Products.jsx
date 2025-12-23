@@ -7,8 +7,7 @@ import { addToCart } from '../store/slices/cartSlice';
 import { addToWishlist } from '../store/slices/wishlistSlice';
 import { FiShoppingCart, FiHeart, FiFilter } from 'react-icons/fi';
 import toast from 'react-hot-toast';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../utils/api';
 
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();

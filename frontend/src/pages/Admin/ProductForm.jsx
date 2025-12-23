@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { FiX, FiUpload, FiTrash2, FiImage, FiVideo, FiPlus } from 'react-icons/fi';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../../utils/api';
 
 const ProductForm = ({ product, categories, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);

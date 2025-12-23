@@ -3,8 +3,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { FiEdit2, FiTrash2, FiPlus, FiFolder, FiImage, FiTrendingUp, FiBox } from 'react-icons/fi';
 import CategoryForm from './CategoryForm';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../../utils/api';
 
 const AdminCategories = () => {
   const [categories, setCategories] = useState([]);
