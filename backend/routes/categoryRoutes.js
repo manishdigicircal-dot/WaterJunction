@@ -109,15 +109,26 @@ router.post('/', protect, admin, uploadCategoryFiles.single('image'), async (req
         const uploadedImage = await uploadToCloudinary(req.file.buffer, 'waterjunction/categories', 'image');
         if (uploadedImage) {
           image = uploadedImage;
+          console.log('Category image uploaded to Cloudinary successfully');
         } else {
           // If Cloudinary not configured, use base64 data URL as fallback
           const base64 = req.file.buffer.toString('base64');
           const mimeType = req.file.mimetype || 'image/jpeg';
           image = `data:${mimeType};base64,${base64}`;
+          console.log('Category image saved using base64 fallback (Cloudinary not configured)');
         }
       } catch (uploadError) {
-        console.error('Image upload failed:', uploadError);
-        // Continue without image if upload fails
+        console.error('Cloudinary upload error:', uploadError);
+        // If Cloudinary fails (invalid key, network error, etc.), fallback to base64
+        try {
+          const base64 = req.file.buffer.toString('base64');
+          const mimeType = req.file.mimetype || 'image/jpeg';
+          image = `data:${mimeType};base64,${base64}`;
+          console.log('Category image saved using base64 fallback after Cloudinary error');
+        } catch (base64Error) {
+          console.error('Failed to convert image to base64:', base64Error);
+          // Continue without image if base64 conversion also fails
+        }
       }
     }
 
@@ -170,16 +181,27 @@ router.put('/:id', protect, admin, uploadCategoryFiles.single('image'), async (r
         const uploadedImage = await uploadToCloudinary(req.file.buffer, 'waterjunction/categories', 'image');
         if (uploadedImage) {
           updateData.image = uploadedImage;
+          console.log('Category image updated via Cloudinary successfully');
         } else {
           // If Cloudinary not configured, use base64 data URL as fallback
           const base64 = req.file.buffer.toString('base64');
           const mimeType = req.file.mimetype || 'image/jpeg';
           updateData.image = `data:${mimeType};base64,${base64}`;
+          console.log('Category image updated using base64 fallback (Cloudinary not configured)');
         }
       } catch (uploadError) {
-        console.error('Image upload failed:', uploadError);
-        // Keep existing image if upload fails
-        updateData.image = category.image || '';
+        console.error('Cloudinary upload error:', uploadError);
+        // If Cloudinary fails (invalid key, network error, etc.), fallback to base64
+        try {
+          const base64 = req.file.buffer.toString('base64');
+          const mimeType = req.file.mimetype || 'image/jpeg';
+          updateData.image = `data:${mimeType};base64,${base64}`;
+          console.log('Category image updated using base64 fallback after Cloudinary error');
+        } catch (base64Error) {
+          console.error('Failed to convert image to base64:', base64Error);
+          // Keep existing image if base64 conversion also fails
+          updateData.image = category.image || '';
+        }
       }
     }
 
