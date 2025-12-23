@@ -22,8 +22,8 @@ const wishlistSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// PERFORMANCE: Add index on user field for faster queries
-wishlistSchema.index({ user: 1 });
+// PERFORMANCE: Add indexes for faster queries
+// Note: user field already has index due to unique: true
 wishlistSchema.index({ 'items.product': 1 }); // For product lookups
 
 const Wishlist = mongoose.model('Wishlist', wishlistSchema);

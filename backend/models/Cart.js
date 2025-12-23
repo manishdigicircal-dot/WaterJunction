@@ -45,8 +45,8 @@ cartSchema.virtual('totalItems').get(function() {
   return this.items.reduce((sum, item) => sum + item.quantity, 0);
 });
 
-// PERFORMANCE: Add index on user field for faster queries
-cartSchema.index({ user: 1 });
+// PERFORMANCE: Add indexes for faster queries
+// Note: user field already has index due to unique: true
 cartSchema.index({ 'items.product': 1 }); // For product lookups
 cartSchema.index({ lastUpdated: -1 }); // For sorting
 
