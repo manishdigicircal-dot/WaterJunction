@@ -256,6 +256,7 @@ const seedData = async () => {
         name: cat.name,
         slug: slug,
         description: cat.description,
+        image: cat.image || '',
         order: categories.indexOf(cat)
       });
       createdCategories[cat.name] = category;
