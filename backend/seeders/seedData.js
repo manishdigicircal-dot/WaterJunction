@@ -7,11 +7,13 @@ import Coupon from '../models/Coupon.js';
 
 dotenv.config();
 
-// Helper function to create SVG placeholder image (URL-encoded for better compatibility)
+// Helper function to create SVG placeholder image (simplified for better compatibility)
 const createPlaceholderImage = (text, bgColor = '0EA5E9') => {
-  const svg = `<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg"><rect width="600" height="400" fill="#${bgColor}"/><text x="50%" y="50%" font-family="Arial,sans-serif" font-size="32" fill="white" text-anchor="middle" dominant-baseline="middle" font-weight="bold">${text}</text></svg>`;
-  // Use URL encoding instead of base64 for better browser compatibility
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  // Create a simple, short SVG that works in all browsers
+  // Using base64 encoding which is more reliable than URL encoding for long strings
+  const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="#${bgColor}"/><text x="50%" y="50%" font-size="32" fill="white" text-anchor="middle" dominant-baseline="middle" font-weight="bold">${text}</text></svg>`;
+  const base64 = Buffer.from(svgContent).toString('base64');
+  return `data:image/svg+xml;base64,${base64}`;
 };
 
 const categories = [
