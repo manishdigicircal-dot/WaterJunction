@@ -8,13 +8,13 @@ import Coupon from '../models/Coupon.js';
 dotenv.config();
 
 const categories = [
-  { name: 'Water Purifiers', description: 'Advanced water purifiers for clean drinking water' },
-  { name: 'Water Dispensers', description: 'Hot and cold water dispensers' },
-  { name: 'Water Filters', description: 'Water filtration systems and cartridges' },
-  { name: 'Water Softeners', description: 'Water softening solutions' },
-  { name: 'Water Storage Tanks', description: 'Water storage solutions' },
-  { name: 'Pumps', description: 'Water pumps and motors' },
-  { name: 'Accessories', description: 'Water treatment accessories' }
+  { name: 'Water Purifiers', description: 'Advanced water purifiers for clean drinking water', image: 'https://via.placeholder.com/600x400/0EA5E9/ffffff?text=Water+Purifiers' },
+  { name: 'Water Dispensers', description: 'Hot and cold water dispensers', image: 'https://via.placeholder.com/600x400/10B981/ffffff?text=Water+Dispensers' },
+  { name: 'Water Filters', description: 'Water filtration systems and cartridges', image: 'https://via.placeholder.com/600x400/F59E0B/ffffff?text=Water+Filters' },
+  { name: 'Water Softeners', description: 'Water softening solutions', image: 'https://via.placeholder.com/600x400/8B5CF6/ffffff?text=Water+Softeners' },
+  { name: 'Water Storage Tanks', description: 'Water storage solutions', image: 'https://via.placeholder.com/600x400/64748B/ffffff?text=Storage+Tanks' },
+  { name: 'Pumps', description: 'Water pumps and motors', image: 'https://via.placeholder.com/600x400/14B8A6/ffffff?text=Water+Pumps' },
+  { name: 'Accessories', description: 'Water treatment accessories', image: 'https://via.placeholder.com/600x400/EC4899/ffffff?text=Accessories' }
 ];
 
 const products = [
