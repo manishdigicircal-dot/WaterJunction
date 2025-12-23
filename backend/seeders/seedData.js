@@ -184,11 +184,9 @@ const coupons = [
 
 const seedData = async () => {
   try {
-    // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/water', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    // Connect to MongoDB (support both MONGO_URI and MONGODB_URI)
+    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/water';
+    await mongoose.connect(mongoUri);
     console.log('✅ MongoDB Connected');
 
     // Clear existing data
