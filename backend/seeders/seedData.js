@@ -25,7 +25,7 @@ const products = [
     mrp: 19999,
     stock: 50,
     category: 'Water Purifiers',
-    images: [],
+    images: ['https://via.placeholder.com/600x600/0EA5E9/ffffff?text=Water+Purifier'],
     specifications: {
       performanceFeatures: {
         'Purification Technology': 'RO + UV + UF',
@@ -57,6 +57,7 @@ const products = [
     mrp: 15999,
     stock: 40,
     category: 'Water Purifiers',
+    images: ['https://via.placeholder.com/600x600/0EA5E9/ffffff?text=RO+Purifier'],
     specifications: {
       performanceFeatures: {
         'Purification Technology': 'RO',
@@ -74,7 +75,8 @@ const products = [
     price: 8999,
     mrp: 12999,
     stock: 35,
-    category: 'Water Purifiers'
+    category: 'Water Purifiers',
+    images: ['https://via.placeholder.com/600x600/06B6D4/ffffff?text=UV+Purifier']
   },
   {
     name: 'Hot & Cold Water Dispenser',
@@ -83,6 +85,7 @@ const products = [
     mrp: 11999,
     stock: 25,
     category: 'Water Dispensers',
+    images: ['https://via.placeholder.com/600x600/10B981/ffffff?text=Water+Dispenser'],
     specifications: {
       general: {
         'Hot Water Temperature': '90°C',
@@ -97,7 +100,8 @@ const products = [
     price: 1999,
     mrp: 2499,
     stock: 100,
-    category: 'Water Filters'
+    category: 'Water Filters',
+    images: ['https://via.placeholder.com/600x600/F59E0B/ffffff?text=Filter+Cartridge']
   },
   {
     name: 'RO Membrane Filter',
@@ -105,7 +109,8 @@ const products = [
     price: 1499,
     mrp: 1999,
     stock: 150,
-    category: 'Water Filters'
+    category: 'Water Filters',
+    images: ['https://via.placeholder.com/600x600/EF4444/ffffff?text=RO+Membrane']
   },
   {
     name: 'Water Softener System',
@@ -113,7 +118,8 @@ const products = [
     price: 24999,
     mrp: 29999,
     stock: 15,
-    category: 'Water Softeners'
+    category: 'Water Softeners',
+    images: ['https://via.placeholder.com/600x600/8B5CF6/ffffff?text=Water+Softener']
   },
   {
     name: 'Stainless Steel Water Tank 500L',
@@ -122,6 +128,7 @@ const products = [
     mrp: 11999,
     stock: 20,
     category: 'Water Storage Tanks',
+    images: ['https://via.placeholder.com/600x600/64748B/ffffff?text=Water+Tank'],
     specifications: {
       dimensions: {
         'Capacity': '500 Liters',
@@ -135,7 +142,8 @@ const products = [
     price: 5999,
     mrp: 7999,
     stock: 30,
-    category: 'Pumps'
+    category: 'Pumps',
+    images: ['https://via.placeholder.com/600x600/14B8A6/ffffff?text=Water+Pump']
   },
   {
     name: 'Water Testing Kit',
@@ -143,7 +151,8 @@ const products = [
     price: 499,
     mrp: 799,
     stock: 200,
-    category: 'Accessories'
+    category: 'Accessories',
+    images: ['https://via.placeholder.com/600x600/EC4899/ffffff?text=Testing+Kit']
   }
 ];
 
