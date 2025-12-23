@@ -172,15 +172,28 @@ const AdminProducts = () => {
                 <tr key={product._id} className="border-b hover:bg-gray-50">
                   <td className="p-3">
                     <div className="flex items-center space-x-3">
-                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 border border-gray-100">
-                        <img
-                          src={product.images?.[0] || '/placeholder.jpg'}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.src = '/placeholder.jpg';
-                          }}
-                        />
+                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 border border-gray-100 flex items-center justify-center">
+                        {product.images && product.images.length > 0 && product.images[0] ? (
+                          <img
+                            src={product.images[0]}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              console.error('Admin product image failed:', product.images[0]);
+                              e.target.style.display = 'none';
+                              if (!e.target.parentElement.querySelector('.img-placeholder')) {
+                                const placeholder = document.createElement('div');
+                                placeholder.className = 'img-placeholder w-full h-full flex items-center justify-center text-xl bg-gray-200';
+                                placeholder.innerHTML = '💧';
+                                e.target.parentElement.appendChild(placeholder);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xl bg-gray-200">
+                            💧
+                          </div>
+                        )}
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900">{product.name}</p>

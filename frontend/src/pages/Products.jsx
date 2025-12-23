@@ -260,11 +260,28 @@ const Products = () => {
               {products.map((product) => (
                 <div key={product._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
                   <Link to={`/products/${product._id}`}>
-                    <img
-                      src={product.images[0] || '/placeholder.jpg'}
-                      alt={product.name}
-                      className="w-full h-64 object-cover"
-                    />
+                    {product.images && product.images.length > 0 && product.images[0] ? (
+                      <img
+                        src={product.images[0]}
+                        alt={product.name}
+                        className="w-full h-64 object-cover"
+                        onError={(e) => {
+                          console.error('Product image failed to load:', product.images[0]);
+                          e.target.src = '';
+                          e.target.style.display = 'none';
+                          if (!e.target.nextSibling) {
+                            const placeholder = document.createElement('div');
+                            placeholder.className = 'w-full h-64 flex items-center justify-center text-6xl bg-gray-100';
+                            placeholder.innerHTML = '💧';
+                            e.target.parentElement.appendChild(placeholder);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-64 flex items-center justify-center text-6xl bg-gray-100">
+                        💧
+                      </div>
+                    )}
                   </Link>
                   <div className="p-4">
                     <Link to={`/products/${product._id}`}>
