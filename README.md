@@ -77,8 +77,9 @@ Create a `.env` file in the `backend` directory:
 PORT=5000
 NODE_ENV=development
 
-# MongoDB Configuration
-MONGODB_URI=mongodb://localhost:27017/water
+# MongoDB Configuration (use MONGO_URI or MONGODB_URI)
+MONGO_URI=mongodb://localhost:27017/water
+# For MongoDB Atlas: MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/water
 
 # JWT Configuration
 JWT_SECRET=your_super_secret_jwt_key_change_this_in_production

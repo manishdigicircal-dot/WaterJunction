@@ -184,36 +184,40 @@ if (process.env.NODE_ENV === 'production') {
 app.use(notFound);
 app.use(errorHandler);
 
-// MongoDB Connection
-// mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/water', {
-//   useNewUrlParser: true,
-//   useUnifiedTopology: true,
-// })
 
 
-const mongoUri =
-  process.env.MONGO_URI || 'mongodb://localhost:27017/water';
 
-// MongoDB connection options for better performance
-mongoose.connect(mongoUri, {
-  maxPoolSize: 10, // Maintain up to 10 socket connections
-  serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
-  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-})
-.then(() => {
-  console.log('✅ MongoDB Connected Successfully');
-  
-  // Start Server
-  const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
-})
-.catch((error) => {
-  console.error('❌ MongoDB Connection Error:', error);
+// Support both MONGO_URI and MONGODB_URI for compatibility
+const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+
+if (!mongoUri) {
+  console.error('❌ MONGO_URI or MONGODB_URI is missing in environment variables');
+  console.error('💡 Please set MONGO_URI or MONGODB_URI in your .env file');
+  console.error('💡 For MongoDB Atlas: mongodb+srv://username:password@cluster.mongodb.net/database');
+  console.error('💡 For local MongoDB: mongodb://localhost:27017/database');
   process.exit(1);
-});
+}
+
+mongoose
+  .connect(mongoUri, {
+    maxPoolSize: 10,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+  })
+  .then(() => {
+    console.log('✅ MongoDB Connected Successfully');
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+  })
+  .catch((error) => {
+    console.error('❌ MongoDB Connection Error:', error);
+    process.exit(1);
+  });
+
 
 export default app;
 
