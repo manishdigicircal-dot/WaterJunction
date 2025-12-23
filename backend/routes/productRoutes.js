@@ -196,10 +196,18 @@ router.post('/', protect, admin, uploadProductFiles.fields([
 ]), async (req, res) => {
   try {
     const productData = JSON.parse(req.body.product || '{}');
+    console.log('Creating product - received images in productData:', productData.images ? `${productData.images.length} items` : 'none');
+    console.log('Files received:', req.files ? Object.keys(req.files) : 'none');
 
-    // Upload images
+    // Upload images - start with any existing images from productData
     const images = [];
+    if (productData.images && Array.isArray(productData.images) && productData.images.length > 0) {
+      images.push(...productData.images);
+      console.log('Preserving existing images from productData:', productData.images.length);
+    }
+    
     if (req.files && req.files.images && req.files.images.length > 0) {
+      console.log('Processing new image uploads:', req.files.images.length, 'files');
       for (const file of req.files.images) {
         try {
           const url = await uploadToCloudinary(file.buffer, 'waterjunction/products', 'image');
