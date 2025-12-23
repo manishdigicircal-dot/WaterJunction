@@ -528,11 +528,21 @@ router.put('/:id', protect, admin, uploadProductFiles.fields([
     });
 
     console.log('Attempting to update product with data:', Object.keys(updateData));
+    console.log('Images in updateData:', updateData.images ? `${updateData.images.length} items` : 'not set');
+    if (updateData.images && updateData.images.length > 0) {
+      console.log('First image preview:', updateData.images[0].substring(0, 80) + '...');
+    }
     
     // Remove fields that might cause index key size issues
     // MongoDB has a 1024 byte limit for index keys
     // Text index fields (name, description) might cause issues if too long
     const safeUpdateData = { ...updateData };
+    
+    // Ensure images array is explicitly set - don't let it be undefined or null
+    if ('images' in updateData) {
+      safeUpdateData.images = Array.isArray(updateData.images) ? updateData.images : [];
+      console.log('Setting images in safeUpdateData:', safeUpdateData.images.length, 'items');
+    }
     
     // If name or description are too long, truncate them for the index
     // But keep full values in the document
