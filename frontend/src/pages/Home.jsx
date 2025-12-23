@@ -763,8 +763,7 @@ const Home = () => {
                 const hasValidImage = category.image && 
                                       category.image.trim() && 
                                       category.image.length > 10 &&
-                                      !category.image.includes('placeholder') &&
-                                      (category.image.startsWith('http') || category.image.startsWith('data:image/'));
+                                      (category.image.startsWith('http') || category.image.startsWith('data:image/') || category.image.startsWith('data:image/svg+xml'));
                 
                 // Different gradient backgrounds for each category card
                 const cardGradients = [
