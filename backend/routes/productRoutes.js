@@ -221,7 +221,15 @@ router.post('/', protect, admin, uploadProductFiles.fields([
           }
         } catch (uploadError) {
           console.error('Image upload failed:', uploadError);
-          // Continue without this image
+          // Cloudinary error (like invalid API key) - fall back to base64 so images still work
+          try {
+            const base64 = file.buffer.toString('base64');
+            const mimeType = file.mimetype || 'image/jpeg';
+            images.push(`data:${mimeType};base64,${base64}`);
+            console.log('Image saved using base64 fallback after Cloudinary error');
+          } catch (fallbackError) {
+            console.error('Failed to create base64 fallback image:', fallbackError);
+          }
         }
       }
       console.log('Total images after upload:', images.length);
@@ -371,7 +379,15 @@ router.put('/:id', protect, admin, uploadProductFiles.fields([
           }
         } catch (uploadError) {
           console.error('Image upload failed:', uploadError);
-          // Continue without this image
+          // Cloudinary error (like invalid API key) - fall back to base64 so images still work
+          try {
+            const base64 = file.buffer.toString('base64');
+            const mimeType = file.mimetype || 'image/jpeg';
+            newImages.push(`data:${mimeType};base64,${base64}`);
+            console.log('Update image saved using base64 fallback after Cloudinary error');
+          } catch (fallbackError) {
+            console.error('Failed to create base64 fallback image on update:', fallbackError);
+          }
         }
       }
       // Use existing images from productData if provided, otherwise use product.images
