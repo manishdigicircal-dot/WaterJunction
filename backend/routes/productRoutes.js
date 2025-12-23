@@ -216,6 +216,9 @@ router.post('/', protect, admin, uploadProductFiles.fields([
           // Continue without this image
         }
       }
+      console.log('Total images after upload:', images.length);
+    } else {
+      console.log('No new image files uploaded');
     }
 
     // Upload video if present (file upload) or use video URL from form

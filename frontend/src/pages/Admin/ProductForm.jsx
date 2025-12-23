@@ -135,6 +135,12 @@ const ProductForm = ({ product, categories, onClose, onSuccess }) => {
       
       console.log('Video to send:', videoToSend ? `URL: ${videoToSend.substring(0, 50)}...` : 'No video', videoFile ? 'File uploaded' : 'No file');
       
+      console.log('Submitting product with:', {
+        existingImagesCount: existingImages.length,
+        newImageFilesCount: imageFiles.length,
+        existingImagesPreview: existingImages.slice(0, 2).map(img => img.substring(0, 50) + '...')
+      });
+
       formDataToSend.append('product', JSON.stringify({
         name: formData.name,
         category: formData.category,
@@ -151,6 +157,7 @@ const ProductForm = ({ product, categories, onClose, onSuccess }) => {
 
       // Add new images
       imageFiles.forEach((file) => {
+        console.log('Appending image file:', file.name, file.size, 'bytes');
         formDataToSend.append('images', file);
       });
 
