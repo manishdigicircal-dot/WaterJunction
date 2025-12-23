@@ -7,14 +7,23 @@ import Coupon from '../models/Coupon.js';
 
 dotenv.config();
 
+// Helper function to create SVG placeholder image
+const createPlaceholderImage = (text, bgColor = '0EA5E9') => {
+  const svg = `<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg">
+    <rect width="600" height="400" fill="#${bgColor}"/>
+    <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="32" fill="white" text-anchor="middle" dominant-baseline="middle" font-weight="bold">${text}</text>
+  </svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+};
+
 const categories = [
-  { name: 'Water Purifiers', description: 'Advanced water purifiers for clean drinking water', image: 'https://via.placeholder.com/600x400/0EA5E9/ffffff?text=Water+Purifiers' },
-  { name: 'Water Dispensers', description: 'Hot and cold water dispensers', image: 'https://via.placeholder.com/600x400/10B981/ffffff?text=Water+Dispensers' },
-  { name: 'Water Filters', description: 'Water filtration systems and cartridges', image: 'https://via.placeholder.com/600x400/F59E0B/ffffff?text=Water+Filters' },
-  { name: 'Water Softeners', description: 'Water softening solutions', image: 'https://via.placeholder.com/600x400/8B5CF6/ffffff?text=Water+Softeners' },
-  { name: 'Water Storage Tanks', description: 'Water storage solutions', image: 'https://via.placeholder.com/600x400/64748B/ffffff?text=Storage+Tanks' },
-  { name: 'Pumps', description: 'Water pumps and motors', image: 'https://via.placeholder.com/600x400/14B8A6/ffffff?text=Water+Pumps' },
-  { name: 'Accessories', description: 'Water treatment accessories', image: 'https://via.placeholder.com/600x400/EC4899/ffffff?text=Accessories' }
+  { name: 'Water Purifiers', description: 'Advanced water purifiers for clean drinking water', image: createPlaceholderImage('Water Purifiers', '0EA5E9') },
+  { name: 'Water Dispensers', description: 'Hot and cold water dispensers', image: createPlaceholderImage('Water Dispensers', '10B981') },
+  { name: 'Water Filters', description: 'Water filtration systems and cartridges', image: createPlaceholderImage('Water Filters', 'F59E0B') },
+  { name: 'Water Softeners', description: 'Water softening solutions', image: createPlaceholderImage('Water Softeners', '8B5CF6') },
+  { name: 'Water Storage Tanks', description: 'Water storage solutions', image: createPlaceholderImage('Storage Tanks', '64748B') },
+  { name: 'Pumps', description: 'Water pumps and motors', image: createPlaceholderImage('Water Pumps', '14B8A6') },
+  { name: 'Accessories', description: 'Water treatment accessories', image: createPlaceholderImage('Accessories', 'EC4899') }
 ];
 
 const products = [
@@ -57,7 +66,7 @@ const products = [
     mrp: 15999,
     stock: 40,
     category: 'Water Purifiers',
-    images: ['https://via.placeholder.com/600x600/0EA5E9/ffffff?text=RO+Purifier'],
+    images: [createPlaceholderImage('RO Purifier', '0EA5E9')],
     specifications: {
       performanceFeatures: {
         'Purification Technology': 'RO',
@@ -76,7 +85,7 @@ const products = [
     mrp: 12999,
     stock: 35,
     category: 'Water Purifiers',
-    images: ['https://via.placeholder.com/600x600/06B6D4/ffffff?text=UV+Purifier']
+    images: [createPlaceholderImage('UV Purifier', '06B6D4')]
   },
   {
     name: 'Hot & Cold Water Dispenser',
@@ -85,7 +94,7 @@ const products = [
     mrp: 11999,
     stock: 25,
     category: 'Water Dispensers',
-    images: ['https://via.placeholder.com/600x600/10B981/ffffff?text=Water+Dispenser'],
+    images: [createPlaceholderImage('Water Dispenser', '10B981')],
     specifications: {
       general: {
         'Hot Water Temperature': '90°C',
@@ -101,7 +110,7 @@ const products = [
     mrp: 2499,
     stock: 100,
     category: 'Water Filters',
-    images: ['https://via.placeholder.com/600x600/F59E0B/ffffff?text=Filter+Cartridge']
+    images: [createPlaceholderImage('Filter Cartridge', 'F59E0B')]
   },
   {
     name: 'RO Membrane Filter',
@@ -110,7 +119,7 @@ const products = [
     mrp: 1999,
     stock: 150,
     category: 'Water Filters',
-    images: ['https://via.placeholder.com/600x600/EF4444/ffffff?text=RO+Membrane']
+    images: [createPlaceholderImage('RO Membrane', 'EF4444')]
   },
   {
     name: 'Water Softener System',
@@ -119,7 +128,7 @@ const products = [
     mrp: 29999,
     stock: 15,
     category: 'Water Softeners',
-    images: ['https://via.placeholder.com/600x600/8B5CF6/ffffff?text=Water+Softener']
+    images: [createPlaceholderImage('Water Softener', '8B5CF6')]
   },
   {
     name: 'Stainless Steel Water Tank 500L',
@@ -128,7 +137,7 @@ const products = [
     mrp: 11999,
     stock: 20,
     category: 'Water Storage Tanks',
-    images: ['https://via.placeholder.com/600x600/64748B/ffffff?text=Water+Tank'],
+    images: [createPlaceholderImage('Water Tank', '64748B')],
     specifications: {
       dimensions: {
         'Capacity': '500 Liters',
@@ -143,7 +152,7 @@ const products = [
     mrp: 7999,
     stock: 30,
     category: 'Pumps',
-    images: ['https://via.placeholder.com/600x600/14B8A6/ffffff?text=Water+Pump']
+    images: [createPlaceholderImage('Water Pump', '14B8A6')]
   },
   {
     name: 'Water Testing Kit',
@@ -152,7 +161,7 @@ const products = [
     mrp: 799,
     stock: 200,
     category: 'Accessories',
-    images: ['https://via.placeholder.com/600x600/EC4899/ffffff?text=Testing+Kit']
+    images: [createPlaceholderImage('Testing Kit', 'EC4899')]
   }
 ];
 
