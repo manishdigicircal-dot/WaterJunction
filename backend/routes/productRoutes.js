@@ -328,7 +328,8 @@ router.put('/:id', protect, admin, uploadProductFiles.fields([
     let productData;
     try {
       productData = JSON.parse(req.body.product || '{}');
-      console.log('Parsed product data:', Object.keys(productData));
+      console.log('Parsed product data keys:', Object.keys(productData));
+      console.log('ProductData images:', productData.images ? `Array with ${productData.images.length} items` : 'undefined');
     } catch (parseError) {
       console.error('Failed to parse product data:', parseError);
       return res.status(400).json({ message: 'Invalid product data format' });
@@ -336,6 +337,7 @@ router.put('/:id', protect, admin, uploadProductFiles.fields([
 
     // Handle image updates
     if (req.files && req.files.images && req.files.images.length > 0) {
+      console.log('New images uploaded:', req.files.images.length);
       const newImages = [];
       for (const file of req.files.images) {
         try {
@@ -358,9 +360,18 @@ router.put('/:id', protect, admin, uploadProductFiles.fields([
         ? productData.images 
         : (product.images || []);
       productData.images = [...existingImages, ...newImages];
-    } else if (productData.images !== undefined) {
-      // If no new images but images array is provided, use it
-      productData.images = Array.isArray(productData.images) ? productData.images : [];
+      console.log('Final images after upload:', productData.images.length, 'items');
+    } else {
+      // No new images uploaded
+      if (productData.images !== undefined) {
+        // Images array explicitly provided in request (could be empty array to clear, or existing images to preserve)
+        productData.images = Array.isArray(productData.images) ? productData.images : [];
+        console.log('Using provided images array:', productData.images.length, 'items');
+      } else {
+        // Images not in request - preserve existing images
+        productData.images = product.images || [];
+        console.log('Preserving existing images:', productData.images.length, 'items');
+      }
     }
 
     // Handle video update - can be file upload or URL
