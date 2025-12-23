@@ -34,7 +34,7 @@ const products = [
     mrp: 19999,
     stock: 50,
     category: 'Water Purifiers',
-    images: ['https://via.placeholder.com/600x600/0EA5E9/ffffff?text=Water+Purifier'],
+    images: [createPlaceholderImage('Water Purifier', '0EA5E9')],
     specifications: {
       performanceFeatures: {
         'Purification Technology': 'RO + UV + UF',
