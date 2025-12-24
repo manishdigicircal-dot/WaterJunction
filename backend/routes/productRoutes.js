@@ -119,7 +119,7 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      console.log('⏱️ Starting Product query (using aggregation)...');
+      console.log('⏱️ Starting Product query (using aggregation with timeout wrapper)...');
       const startTime = Date.now();
       
       // Use aggregation pipeline instead of find - sometimes faster
@@ -147,8 +147,14 @@ router.get('/', [
           }
         ];
         
-        // Pass options as second parameter - increased timeout for slow connections
-        productsData = await Product.aggregate(pipeline, { maxTimeMS: 60000 });
+        // Wrap in Promise.race to add client-side timeout as backup
+        const queryPromise = Product.aggregate(pipeline, { maxTimeMS: 60000 });
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Aggregation query timeout after 30 seconds')), 30000);
+        });
+        
+        console.log('⏳ Waiting for aggregation query...');
+        productsData = await Promise.race([queryPromise, timeoutPromise]);
         
         const queryTime = Date.now() - startTime;
         console.log(`✅ Aggregation query succeeded in ${queryTime}ms: ${productsData.length} products`);
