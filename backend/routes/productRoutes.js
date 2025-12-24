@@ -119,12 +119,12 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      console.log('⏱️ Starting Product query (with first image only)...');
+      console.log('⏱️ Starting Product query (trying with first image, fallback to without)...');
       const startTime = Date.now();
       
-      // Use aggregation to fetch products with ONLY first image using $slice
-      // This reduces document size while still showing images
-      console.log('🔍 Fetching products with first image only (optimized)...');
+      // Strategy: Try to fetch with first image, but with shorter timeout
+      // If that fails, fallback to without images (fast and reliable)
+      console.log('🔍 Attempting to fetch products with first image (10s timeout)...');
       try {
         const pipeline = [
           { $match: { isActive: true } },
@@ -135,7 +135,7 @@ router.get('/', [
             $project: {
               name: 1,
               slug: 1,
-              images: { $slice: ['$images', 1] }, // ONLY first image - reduces size
+              images: { $slice: ['$images', 1] }, // ONLY first image
               price: 1,
               mrp: 1,
               discountPercent: 1,
@@ -148,27 +148,26 @@ router.get('/', [
           }
         ];
         
-        const queryPromise = Product.aggregate(pipeline).option({ maxTimeMS: 25000 });
+        const queryPromise = Product.aggregate(pipeline).option({ maxTimeMS: 10000 });
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Query timeout after 22 seconds')), 22000);
+          setTimeout(() => reject(new Error('Images query timeout after 8 seconds')), 8000);
         });
         
-        console.log('⏳ Waiting for products query with images...');
         productsData = await Promise.race([queryPromise, timeoutPromise]);
         
         const queryTime = Date.now() - startTime;
-        console.log(`✅ Products fetched in ${queryTime}ms: ${productsData.length} products with images`);
+        console.log(`✅ Products fetched WITH images in ${queryTime}ms: ${productsData.length} products`);
         
         // Convert ObjectId to string
         productsData = productsData.map(product => ({
           ...product,
           _id: product._id ? product._id.toString() : product._id,
           category: product.category ? product.category.toString() : null,
-          images: product.images || [] // Include first image from aggregation
+          images: product.images || [] // Include first image
         }));
       } catch (aggErr) {
-        console.warn('⚠️ Aggregation with images failed, trying simple query:', aggErr.message);
-        // Fallback: Try simple query without images if aggregation fails
+        console.warn('⚠️ Fetching with images failed (MongoDB slow), using fast query without images:', aggErr.message);
+        // Fallback: Fast query without images (always works)
         try {
           let simpleQuery = Product.find({ isActive: true })
             .select('name slug price mrp discountPercent stock ratings category isFeatured createdAt')
@@ -176,20 +175,23 @@ router.get('/', [
             .skip(skip)
             .limit(limit)
             .lean()
-            .maxTimeMS(10000);
+            .maxTimeMS(8000);
           
           productsData = await Promise.race([
             simpleQuery,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Simple query timeout')), 8000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Simple query timeout')), 6000))
           ]);
           
           productsData = productsData.map(product => ({
             ...product,
             _id: product._id ? product._id.toString() : product._id,
             category: product.category ? product.category.toString() : null,
-            images: [] // No images in fallback mode
+            images: [] // No images in fallback - images available on product detail page
           }));
-          console.log(`⚠️ Fallback: Fetched ${productsData.length} products without images`);
+          
+          const fallbackTime = Date.now() - startTime;
+          console.log(`✅ Fallback: Fetched ${productsData.length} products without images in ${fallbackTime}ms`);
+          console.log('ℹ️ Note: Images available on product detail page. MongoDB connection too slow for list view.');
         } catch (simpleErr) {
           console.error('❌ Both aggregation and simple query failed:', simpleErr.message);
           throw simpleErr;
@@ -772,18 +774,42 @@ router.put('/:id', protect, admin, uploadProductFiles.fields([
     const ObjectId = mongoose.Types.ObjectId;
     
     // Use MongoDB native updateOne to bypass ALL validations
-    const result = await collection.updateOne(
+    // Add timeout wrapper for slow MongoDB connections
+    console.log('⏳ Starting product update in MongoDB...');
+    const updateStartTime = Date.now();
+    
+    const updatePromise = collection.updateOne(
       { _id: new ObjectId(req.params.id) },
       { $set: safeUpdateData },
       { bypassDocumentValidation: true } // Bypass MongoDB document validation
     );
     
+    const updateTimeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Product update timeout after 45 seconds')), 45000);
+    });
+    
+    const result = await Promise.race([updatePromise, updateTimeoutPromise]);
+    
     if (result.matchedCount === 0) {
       return res.status(404).json({ message: 'Product not found' });
     }
     
-    // Fetch the updated product using Mongoose
-    const updatedProduct = await Product.findById(req.params.id);
+    const updateTime = Date.now() - updateStartTime;
+    console.log(`✅ Product updated in MongoDB in ${updateTime}ms`);
+    
+    // Fetch the updated product using Mongoose - also with timeout
+    console.log('⏳ Fetching updated product...');
+    const fetchStartTime = Date.now();
+    
+    const fetchPromise = Product.findById(req.params.id);
+    const fetchTimeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Fetch updated product timeout after 15 seconds')), 15000);
+    });
+    
+    const updatedProduct = await Promise.race([fetchPromise, fetchTimeoutPromise]);
+    
+    const fetchTime = Date.now() - fetchStartTime;
+    console.log(`✅ Updated product fetched in ${fetchTime}ms`);
     
     if (!updatedProduct) {
       return res.status(404).json({ message: 'Product not found after update' });
@@ -794,6 +820,19 @@ router.put('/:id', protect, admin, uploadProductFiles.fields([
     res.json({ success: true, product: updatedProduct });
   } catch (error) {
     console.error('Product update error:', error);
+    
+    // Handle timeout errors specifically
+    if (error.message && (
+      error.message.includes('timeout') || 
+      error.message.includes('Timeout') ||
+      error.name === 'MongoNetworkTimeoutError'
+    )) {
+      return res.status(504).json({
+        success: false,
+        message: 'Product update is taking too long due to slow database connection. The update may still be processing. Please check the product after a few moments.',
+        timeout: true
+      });
+    }
     console.error('Error stack:', error.stack);
     console.error('Error details:', {
       name: error.name,
