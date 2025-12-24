@@ -143,23 +143,44 @@ router.get('/', [
         console.log('⏳ Waiting for find() query (without images)...');
         productsData = await Promise.race([queryPromise, timeoutPromise]);
         
-        // Now add empty images array - we'll populate only first image URL if needed
-        productsData = productsData.map(p => ({
-          ...p,
-          images: [] // Empty images array initially to reduce payload
-        }));
-        
         const queryTime = Date.now() - startTime;
-        console.log(`✅ Aggregation query succeeded in ${queryTime}ms: ${productsData.length} products`);
+        console.log(`✅ Find() query succeeded in ${queryTime}ms: ${productsData.length} products (without images)`);
         
-        // Convert ObjectId to string and process images (aggregation already handled select, sort, skip, limit)
+        // Convert ObjectId to string first
         productsData = productsData.map(product => ({
           ...product,
           _id: product._id ? product._id.toString() : product._id,
           category: product.category ? product.category.toString() : null,
-          // Only keep first image to reduce payload
-          images: product.images && product.images.length > 0 ? [product.images[0]] : []
+          images: [] // Will fetch images separately
         }));
+        
+        // If we got products, fetch images separately (optional - can be skipped for speed)
+        if (productsData.length > 0) {
+          console.log('📸 Fetching first image for each product...');
+          try {
+            const productIds = productsData.map(p => new mongoose.Types.ObjectId(p._id));
+            const productsWithImages = await Product.find({ _id: { $in: productIds } })
+              .select('_id images')
+              .lean()
+              .maxTimeMS(15000);
+            
+            const imageMap = {};
+            productsWithImages.forEach(p => {
+              if (p.images && p.images.length > 0) {
+                imageMap[p._id.toString()] = [p.images[0]]; // Only first image
+              }
+            });
+            
+            productsData = productsData.map(product => ({
+              ...product,
+              images: imageMap[product._id] || []
+            }));
+            console.log('✅ Images fetched and attached');
+          } catch (imgErr) {
+            console.warn('⚠️ Image fetch failed, continuing without images:', imgErr.message);
+            // Continue with empty images array
+          }
+        }
       } catch (simpleErr) {
         console.error('❌ Simple query also failed:', simpleErr.message);
         throw simpleErr;
