@@ -233,12 +233,9 @@ router.get('/', [
     
     console.log(`✅ Found ${productsData.length} products, total: ${total}`);
     
-    // Optimize products: Only send first image to reduce payload size dramatically
-    // Base64 images can be 100KB+ each, so 8 products with multiple images = huge payload
-    const products = productsData.map(product => ({
-      ...product,
-      images: product.images && product.images.length > 0 ? [product.images[0]] : []
-    }));
+    // Products already have empty images array (images skipped for faster loading)
+    // Images will be fetched when viewing product details
+    const products = productsData;
 
     // Set cache headers for better performance
     res.set({
