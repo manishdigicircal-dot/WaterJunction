@@ -119,138 +119,102 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      console.log('⏱️ Starting Product query (fetching with images - may take 20-25s)...');
+      console.log('⏱️ Starting optimized product query strategy...');
       const startTime = Date.now();
       
-      // Strategy: Fetch products with first image using aggregation
-      // Increased timeout to 25 seconds for slow MongoDB connections
-      // Note: If products have base64 images, this will be slow but necessary
-      console.log('🔍 Fetching products with first image (25s timeout for slow MongoDB)...');
-      try {
-        const pipeline = [
-          { $match: { isActive: true } },
-          { $sort: { createdAt: -1 } },
-          { $skip: skip },
-          { $limit: limit },
-          {
-            $project: {
-              name: 1,
-              slug: 1,
-              images: { $slice: ['$images', 1] }, // ONLY first image
-              price: 1,
-              mrp: 1,
-              discountPercent: 1,
-              stock: 1,
-              ratings: 1,
-              category: 1,
-              isFeatured: 1,
-              createdAt: 1
-            }
-          }
-        ];
+      // Strategy: Fetch products WITHOUT images first (fast, reliable)
+      // Then fetch images separately in parallel
+      console.log('🚀 Step 1: Fetching products without images (fast query)...');
+      
+      // Fast query without images - always works quickly
+      let simpleQuery = Product.find(filter)
+        .select('name slug price mrp discountPercent stock ratings category isFeatured createdAt')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .maxTimeMS(8000);
+      
+      productsData = await Promise.race([
+        simpleQuery,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Fast query timeout')), 7000))
+      ]);
+      
+      const fastQueryTime = Date.now() - startTime;
+      console.log(`✅ Products fetched WITHOUT images in ${fastQueryTime}ms: ${productsData.length} products`);
+      
+      // Convert ObjectIds to strings
+      productsData = productsData.map(product => ({
+        ...product,
+        _id: product._id ? product._id.toString() : product._id,
+        category: product.category ? product.category.toString() : null,
+        images: [] // Will be populated below
+      }));
+      
+      // Step 2: Fetch first image for each product (only if we have products)
+      if (productsData.length > 0) {
+        console.log('🖼️ Step 2: Fetching first image for each product (parallel query)...');
+        const imageStartTime = Date.now();
         
-        const queryPromise = Product.aggregate(pipeline).option({ maxTimeMS: 30000 });
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Images query timeout after 25 seconds')), 25000);
-        });
-        
-        productsData = await Promise.race([queryPromise, timeoutPromise]);
-        
-        const queryTime = Date.now() - startTime;
-        console.log(`✅ Products fetched WITH images in ${queryTime}ms: ${productsData.length} products`);
-        
-        // Convert ObjectId to string and filter out base64 images if they're too large
-        // Keep only Cloudinary URLs or small base64 images
-        productsData = productsData.map(product => {
-          let firstImage = product.images && product.images.length > 0 ? product.images[0] : null;
-          
-          // If image is base64 and too large (>500KB), skip it to avoid slow rendering
-          if (firstImage && firstImage.startsWith('data:') && firstImage.length > 500000) {
-            console.log(`⚠️ Skipping large base64 image for product ${product._id} (${Math.round(firstImage.length/1024)}KB)`);
-            firstImage = null;
-          }
-          
-          return {
-            ...product,
-            _id: product._id ? product._id.toString() : product._id,
-            category: product.category ? product.category.toString() : null,
-            images: firstImage ? [firstImage] : [] // Include first image if available and not too large
-          };
-        });
-      } catch (aggErr) {
-        console.warn('⚠️ Fetching with images timed out, retrying with longer timeout (35s)...', aggErr.message);
-        // Retry with even longer timeout - MongoDB Atlas can be very slow with base64 images
         try {
-          const retryPipeline = [
-            { $match: { isActive: true } },
-            { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: limit },
+          const productIds = productsData.map(p => p._id);
+          // Convert string IDs to ObjectId for MongoDB query
+          const objectIds = productIds.map(id => {
+            try {
+              return mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id;
+            } catch (e) {
+              return id;
+            }
+          });
+          const imagePipeline = [
+            { $match: { _id: { $in: objectIds }, isActive: true } },
             {
               $project: {
-                name: 1,
-                slug: 1,
-                images: { $slice: ['$images', 1] },
-                price: 1,
-                mrp: 1,
-                discountPercent: 1,
-                stock: 1,
-                ratings: 1,
-                category: 1,
-                isFeatured: 1,
-                createdAt: 1
+                _id: 1,
+                firstImage: { $arrayElemAt: ['$images', 0] } // Get first image
               }
             }
           ];
           
-          const retryPromise = Product.aggregate(retryPipeline).option({ maxTimeMS: 40000 });
-          const retryTimeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Retry query timeout after 35 seconds')), 35000);
+          const imageQueryPromise = Product.aggregate(imagePipeline).option({ maxTimeMS: 12000 });
+          const imageTimeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Image query timeout')), 10000);
           });
           
-          productsData = await Promise.race([retryPromise, retryTimeoutPromise]);
+          const imageResults = await Promise.race([imageQueryPromise, imageTimeoutPromise]);
           
-          const retryTime = Date.now() - startTime;
-          console.log(`✅ Products fetched WITH images (retry) in ${retryTime}ms: ${productsData.length} products`);
+          const imageQueryTime = Date.now() - imageStartTime;
+          console.log(`✅ Images fetched in ${imageQueryTime}ms for ${imageResults.length} products`);
           
-          productsData = productsData.map(product => {
-            let firstImage = product.images && product.images.length > 0 ? product.images[0] : null;
-            if (firstImage && firstImage.startsWith('data:') && firstImage.length > 500000) {
-              firstImage = null;
+          // Create a map of productId -> firstImage
+          const imageMap = {};
+          imageResults.forEach(item => {
+            if (item.firstImage) {
+              // Only include Cloudinary URLs or small base64 images (<200KB)
+              if (item.firstImage.startsWith('http')) {
+                // Cloudinary URL - always include
+                imageMap[item._id.toString()] = item.firstImage;
+              } else if (item.firstImage.startsWith('data:') && item.firstImage.length < 200000) {
+                // Small base64 image - include
+                imageMap[item._id.toString()] = item.firstImage;
+              }
+              // Large base64 images are skipped for performance
             }
-            return {
-              ...product,
-              _id: product._id ? product._id.toString() : product._id,
-              category: product.category ? product.category.toString() : null,
-              images: firstImage ? [firstImage] : []
-            };
           });
-        } catch (retryErr) {
-          console.warn('⚠️ Images fetch failed even with retry, fetching without images:', retryErr.message);
-          // Final fallback: Fast query without images
-          let simpleQuery = Product.find({ isActive: true })
-            .select('name slug price mrp discountPercent stock ratings category isFeatured createdAt')
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit)
-            .lean()
-            .maxTimeMS(10000);
           
-          productsData = await Promise.race([
-            simpleQuery,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Simple query timeout')), 8000))
-          ]);
-          
+          // Merge images into products
           productsData = productsData.map(product => ({
             ...product,
-            _id: product._id ? product._id.toString() : product._id,
-            category: product.category ? product.category.toString() : null,
-            images: [] // No images in final fallback
+            images: imageMap[product._id] ? [imageMap[product._id]] : []
           }));
           
-          const fallbackTime = Date.now() - startTime;
-          console.log(`✅ Final fallback: Fetched ${productsData.length} products without images in ${fallbackTime}ms`);
-          console.log('ℹ️ Note: Product images not available due to slow MongoDB connection. Images available on product detail page.');
+          const totalTime = Date.now() - startTime;
+          console.log(`✅ Total query time: ${totalTime}ms - Products: ${productsData.length}, Images loaded: ${Object.keys(imageMap).length}`);
+        } catch (imageErr) {
+          console.warn('⚠️ Image fetch failed (products will load without images):', imageErr.message);
+          // Products already have empty images array, so continue
+          const totalTime = Date.now() - startTime;
+          console.log(`✅ Products loaded without images in ${totalTime}ms`);
         }
       }
       
@@ -425,32 +389,34 @@ router.post('/', protect, admin, uploadProductFiles.fields([
     }
     
     if (req.files && req.files.images && req.files.images.length > 0) {
-      console.log('Processing new image uploads:', req.files.images.length, 'files');
-      for (const file of req.files.images) {
+      console.log('⏳ Processing new image uploads:', req.files.images.length, 'files');
+      const uploadStartTime = Date.now();
+      
+      // Upload images in parallel for faster processing
+      const uploadPromises = req.files.images.map(async (file) => {
         try {
-          const url = await uploadToCloudinary(file.buffer, 'waterjunction/products', 'image');
+          const uploadPromise = uploadToCloudinary(file.buffer, 'waterjunction/products', 'image');
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Cloudinary upload timeout')), 15000)
+          );
+          
+          const url = await Promise.race([uploadPromise, timeoutPromise]);
           if (url) {
-            images.push(url);
-          } else {
-            // If Cloudinary not configured, use base64 data URL as fallback
-            const base64 = file.buffer.toString('base64');
-            const mimeType = file.mimetype || 'image/jpeg';
-            images.push(`data:${mimeType};base64,${base64}`);
+            return url;
           }
+          return null;
         } catch (uploadError) {
-          console.error('Image upload failed:', uploadError);
-          // Cloudinary error (like invalid API key) - fall back to base64 so images still work
-          try {
-            const base64 = file.buffer.toString('base64');
-            const mimeType = file.mimetype || 'image/jpeg';
-            images.push(`data:${mimeType};base64,${base64}`);
-            console.log('Image saved using base64 fallback after Cloudinary error');
-          } catch (fallbackError) {
-            console.error('Failed to create base64 fallback image:', fallbackError);
-          }
+          console.error('❌ Image upload failed:', uploadError.message);
+          return null;
         }
-      }
-      console.log('Total images after upload:', images.length);
+      });
+      
+      const uploadResults = await Promise.all(uploadPromises);
+      const validImages = uploadResults.filter(url => url !== null);
+      images.push(...validImages);
+      
+      const uploadTime = Date.now() - uploadStartTime;
+      console.log(`✅ Uploaded ${validImages.length}/${req.files.images.length} images to Cloudinary in ${uploadTime}ms`);
     } else {
       console.log('No new image files uploaded');
     }
@@ -562,13 +528,13 @@ router.post('/', protect, admin, uploadProductFiles.fields([
     });
     
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Product creation timeout after 60 seconds')), 60000);
+      setTimeout(() => reject(new Error('Product creation timeout after 30 seconds')), 30000);
     });
     
     const product = await Promise.race([createPromise, timeoutPromise]);
     
     const createTime = Date.now() - createStartTime;
-    console.log(`✅ Product created successfully in ${createTime}ms with images:`, product.images?.length || 0);
+    console.log(`✅ Product created successfully in ${createTime}ms with ${product.images?.length || 0} images (all Cloudinary URLs)`);
 
     res.status(201).json({ success: true, product });
   } catch (error) {
@@ -616,32 +582,35 @@ router.put('/:id', protect, admin, uploadProductFiles.fields([
 
     // Handle image updates
     if (req.files && req.files.images && req.files.images.length > 0) {
-      console.log('New images uploaded:', req.files.images.length);
+      console.log('⏳ Processing new image uploads for update:', req.files.images.length, 'files');
+      const uploadStartTime = Date.now();
       const newImages = [];
-      for (const file of req.files.images) {
+      
+      // Upload images in parallel for faster processing
+      const uploadPromises = req.files.images.map(async (file) => {
         try {
-          const url = await uploadToCloudinary(file.buffer, 'waterjunction/products', 'image');
+          const uploadPromise = uploadToCloudinary(file.buffer, 'waterjunction/products', 'image');
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Cloudinary upload timeout')), 15000)
+          );
+          
+          const url = await Promise.race([uploadPromise, timeoutPromise]);
           if (url) {
-            newImages.push(url);
-          } else {
-            // If Cloudinary not configured, use base64 data URL as fallback
-            const base64 = file.buffer.toString('base64');
-            const mimeType = file.mimetype || 'image/jpeg';
-            newImages.push(`data:${mimeType};base64,${base64}`);
+            return url;
           }
+          return null;
         } catch (uploadError) {
-          console.error('Image upload failed:', uploadError);
-          // Cloudinary error (like invalid API key) - fall back to base64 so images still work
-          try {
-            const base64 = file.buffer.toString('base64');
-            const mimeType = file.mimetype || 'image/jpeg';
-            newImages.push(`data:${mimeType};base64,${base64}`);
-            console.log('Update image saved using base64 fallback after Cloudinary error');
-          } catch (fallbackError) {
-            console.error('Failed to create base64 fallback image on update:', fallbackError);
-          }
+          console.error('❌ Image upload failed:', uploadError.message);
+          return null;
         }
-      }
+      });
+      
+      const uploadResults = await Promise.all(uploadPromises);
+      const validImages = uploadResults.filter(url => url !== null);
+      newImages.push(...validImages);
+      
+      const uploadTime = Date.now() - uploadStartTime;
+      console.log(`✅ Uploaded ${validImages.length}/${req.files.images.length} images to Cloudinary in ${uploadTime}ms`);
       // Use existing images from productData if provided, otherwise use product.images
       const existingImages = productData.images && Array.isArray(productData.images) 
         ? productData.images 
@@ -841,7 +810,7 @@ router.put('/:id', protect, admin, uploadProductFiles.fields([
     );
     
     const updateTimeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Product update timeout after 45 seconds')), 45000);
+      setTimeout(() => reject(new Error('Product update timeout after 30 seconds')), 30000);
     });
     
     const result = await Promise.race([updatePromise, updateTimeoutPromise]);
