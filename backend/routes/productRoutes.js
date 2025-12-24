@@ -119,35 +119,35 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      console.log('⏱️ Starting Product query (using simple find with minimal operations)...');
+      console.log('⏱️ Starting Product query (optimized for slow connections)...');
       const startTime = Date.now();
       
-      // Use simple find() instead of aggregation - more reliable with slow connections
-      console.log('🔍 Attempting simple find() query...');
+      // Try simplest possible query first - without images to reduce document size
+      console.log('🔍 Attempting query WITHOUT images (images will be fetched separately if needed)...');
       try {
-        // Build query with minimal operations
-        let query = Product.find({ isActive: true });
+        // First try: Get products WITHOUT images to reduce document size dramatically
+        // Images can be 100KB+ each in base64, making documents huge
+        let query = Product.find({ isActive: true })
+          .select('name slug price mrp discountPercent stock ratings category isFeatured createdAt') // NO images initially
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .maxTimeMS(20000); // 20 seconds
         
-        // Add select to reduce data transfer
-        query = query.select('name slug images price mrp discountPercent stock ratings category isFeatured createdAt');
-        
-        // Add sort
-        query = query.sort({ createdAt: -1 });
-        
-        // Add pagination
-        query = query.skip(skip).limit(limit);
-        
-        // Use lean for better performance
-        query = query.lean();
-        
-        // Wrap in Promise.race to add client-side timeout
-        const queryPromise = query.maxTimeMS(30000);
+        const queryPromise = query;
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Query timeout after 25 seconds')), 25000);
+          setTimeout(() => reject(new Error('Query timeout after 18 seconds')), 18000);
         });
         
-        console.log('⏳ Waiting for find() query...');
+        console.log('⏳ Waiting for find() query (without images)...');
         productsData = await Promise.race([queryPromise, timeoutPromise]);
+        
+        // Now add empty images array - we'll populate only first image URL if needed
+        productsData = productsData.map(p => ({
+          ...p,
+          images: [] // Empty images array initially to reduce payload
+        }));
         
         const queryTime = Date.now() - startTime;
         console.log(`✅ Aggregation query succeeded in ${queryTime}ms: ${productsData.length} products`);
