@@ -119,40 +119,85 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      console.log('⏱️ Starting Product query (with images included)...');
+      console.log('⏱️ Starting Product query (fast approach: products first, images separately)...');
       const startTime = Date.now();
       
-      // Include images in query but process only first image to reduce payload
-      console.log('🔍 Fetching products WITH images (will keep only first image)...');
+      // Step 1: Fetch products WITHOUT images (fast, ~100ms)
+      console.log('🔍 Step 1: Fetching products WITHOUT images for speed...');
       try {
-        // Fetch products with all fields including images
         let query = Product.find({ isActive: true })
-          .select('name slug images price mrp discountPercent stock ratings category isFeatured createdAt')
+          .select('name slug price mrp discountPercent stock ratings category isFeatured createdAt')
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(limit)
           .lean()
-          .maxTimeMS(30000); // 30 seconds timeout
+          .maxTimeMS(15000); // 15 seconds
         
         const queryPromise = query;
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Query timeout after 25 seconds')), 25000);
+          setTimeout(() => reject(new Error('Query timeout after 12 seconds')), 12000);
         });
         
-        console.log('⏳ Waiting for find() query (with images)...');
+        console.log('⏳ Waiting for products query...');
         productsData = await Promise.race([queryPromise, timeoutPromise]);
         
         const queryTime = Date.now() - startTime;
-        console.log(`✅ Find() query succeeded in ${queryTime}ms: ${productsData.length} products`);
+        console.log(`✅ Products fetched in ${queryTime}ms: ${productsData.length} products`);
         
-        // Convert ObjectId to string and keep only first image to reduce payload
+        // Convert ObjectId to string
         productsData = productsData.map(product => ({
           ...product,
           _id: product._id ? product._id.toString() : product._id,
           category: product.category ? product.category.toString() : null,
-          // Keep only first image to reduce payload size
-          images: product.images && product.images.length > 0 ? [product.images[0]] : []
+          images: [] // Will fetch separately
         }));
+        
+        // Step 2: Fetch images in parallel for all products (with timeout per product)
+        if (productsData.length > 0) {
+          console.log('📸 Step 2: Fetching first image for each product in parallel...');
+          const imagePromises = productsData.map(async (product) => {
+            try {
+              const productDoc = await Product.findById(product._id)
+                .select('images')
+                .lean()
+                .maxTimeMS(5000); // 5 seconds per product
+              
+              return {
+                productId: product._id,
+                images: productDoc?.images && productDoc.images.length > 0 ? [productDoc.images[0]] : []
+              };
+            } catch (err) {
+              console.warn(`⚠️ Image fetch failed for product ${product._id}:`, err.message);
+              return { productId: product._id, images: [] };
+            }
+          });
+          
+          // Wait for all image fetches (with overall timeout)
+          const imageResultsPromise = Promise.all(imagePromises);
+          const imageTimeoutPromise = new Promise((resolve) => {
+            setTimeout(() => resolve([]), 10000); // 10 second overall timeout
+          });
+          
+          const imageResults = await Promise.race([imageResultsPromise, imageTimeoutPromise]);
+          
+          // Map images to products
+          if (Array.isArray(imageResults)) {
+            const imageMap = {};
+            imageResults.forEach(result => {
+              if (result && result.productId) {
+                imageMap[result.productId] = result.images || [];
+              }
+            });
+            
+            productsData = productsData.map(product => ({
+              ...product,
+              images: imageMap[product._id] || []
+            }));
+            
+            const imagesFound = Object.keys(imageMap).filter(id => imageMap[id].length > 0).length;
+            console.log(`✅ Images fetched: ${imagesFound}/${productsData.length} products have images`);
+          }
+        }
       } catch (simpleErr) {
         console.error('❌ Simple query also failed:', simpleErr.message);
         throw simpleErr;
