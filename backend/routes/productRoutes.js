@@ -119,52 +119,38 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      console.log('⏱️ Starting Product query (using aggregation with $slice for first image only)...');
+      console.log('⏱️ Starting Product query (simple find without images for fast loading)...');
       const startTime = Date.now();
       
-      // Use aggregation to get products with ONLY first image using $slice
-      // This reduces document size significantly while still showing images
-      console.log('🔍 Using aggregation to fetch products with first image only...');
+      // Use simple find() WITHOUT images - this works reliably and fast
+      // Images will be shown as placeholder or can be loaded on product detail page
+      console.log('🔍 Fetching products WITHOUT images (fast and reliable)...');
       try {
-        const pipeline = [
-          { $match: { isActive: true } },
-          { $sort: { createdAt: -1 } },
-          { $skip: skip },
-          { $limit: limit },
-          {
-            $project: {
-              name: 1,
-              slug: 1,
-              images: { $slice: ['$images', 1] }, // ONLY first image - reduces size dramatically
-              price: 1,
-              mrp: 1,
-              discountPercent: 1,
-              stock: 1,
-              ratings: 1,
-              category: 1,
-              isFeatured: 1,
-              createdAt: 1
-            }
-          }
-        ];
+        let query = Product.find({ isActive: true })
+          .select('name slug price mrp discountPercent stock ratings category isFeatured createdAt')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .maxTimeMS(15000); // 15 seconds
         
-        const queryPromise = Product.aggregate(pipeline).option({ maxTimeMS: 20000 });
+        const queryPromise = query;
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Query timeout after 18 seconds')), 18000);
+          setTimeout(() => reject(new Error('Query timeout after 12 seconds')), 12000);
         });
         
-        console.log('⏳ Waiting for aggregation query...');
+        console.log('⏳ Waiting for products query...');
         productsData = await Promise.race([queryPromise, timeoutPromise]);
         
         const queryTime = Date.now() - startTime;
-        console.log(`✅ Aggregation query succeeded in ${queryTime}ms: ${productsData.length} products`);
+        console.log(`✅ Products fetched in ${queryTime}ms: ${productsData.length} products`);
         
-        // Convert ObjectId to string
+        // Convert ObjectId to string and add empty images array
         productsData = productsData.map(product => ({
           ...product,
           _id: product._id ? product._id.toString() : product._id,
           category: product.category ? product.category.toString() : null,
-          images: product.images || [] // Already has first image from aggregation
+          images: [] // Empty images array - images available on product detail page
         }));
       } catch (simpleErr) {
         console.error('❌ Simple query also failed:', simpleErr.message);
