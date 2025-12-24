@@ -23,6 +23,7 @@ router.get('/', [
   try {
     console.log('📦 Products API called:', req.query);
     let withImages = req.query.withImages === 'true';
+    console.log('🔍 withImages parameter:', withImages, 'from query:', req.query.withImages);
     
     // Check for validation errors
     const errors = validationResult(req);
