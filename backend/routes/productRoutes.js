@@ -119,26 +119,58 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      console.log('⏱️ Starting Product.find() query...');
+      console.log('⏱️ Starting Product.find() query (simplified)...');
       const startTime = Date.now();
       
-      // Use Promise.race to add an extra timeout layer
-      const queryPromise = Product.find(filter)
-        .select(fieldsToSelect)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean()
-        .maxTimeMS(15000); // 15 seconds timeout
-      
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Query timeout after 15 seconds')), 15000);
-      });
-      
-      productsData = await Promise.race([queryPromise, timeoutPromise]);
-      
-      const queryTime = Date.now() - startTime;
-      console.log(`✅ Products fetched in ${queryTime}ms: ${productsData.length} products`);
+      // Try simplest query first - no select, no sort, just basic find with limit
+      console.log('🔍 Attempting simplest query first...');
+      try {
+        productsData = await Product.find({ isActive: true })
+          .limit(limit)
+          .lean()
+          .maxTimeMS(10000);
+        
+        const queryTime = Date.now() - startTime;
+        console.log(`✅ Simple query succeeded in ${queryTime}ms: ${productsData.length} products`);
+        
+        // Now apply select, sort, and skip in memory if we got results
+        if (productsData.length > 0) {
+          // Apply select (only keep needed fields)
+          const fieldsArray = fieldsToSelect.split(' ');
+          productsData = productsData.map(product => {
+            const filtered = {};
+            fieldsArray.forEach(field => {
+              if (product[field] !== undefined) {
+                filtered[field] = product[field];
+              }
+            });
+            return filtered;
+          });
+          
+          // Apply sort in memory
+          productsData.sort((a, b) => {
+            if (sort.createdAt) {
+              const dateA = new Date(a.createdAt || 0);
+              const dateB = new Date(b.createdAt || 0);
+              return sort.createdAt === -1 ? dateB - dateA : dateA - dateB;
+            }
+            return 0;
+          });
+          
+          // Apply skip
+          if (skip > 0) {
+            productsData = productsData.slice(skip);
+          }
+          
+          // Apply limit again (in case we fetched more)
+          productsData = productsData.slice(0, limit);
+          
+          console.log(`✅ After in-memory processing: ${productsData.length} products`);
+        }
+      } catch (simpleErr) {
+        console.error('❌ Simple query also failed:', simpleErr.message);
+        throw simpleErr;
+      }
       
       if (productsData.length === 0) {
         console.log('⚠️ No products found with filter:', JSON.stringify(filter));
@@ -147,7 +179,6 @@ router.get('/', [
       console.error('❌ Error fetching products:', err.message);
       console.error('❌ Error name:', err.name);
       console.error('❌ Error code:', err.code);
-      console.error('❌ Full error:', err);
       
       // Return empty array on any error to prevent app crash
       console.warn('⚠️ Returning empty products array due to error');
