@@ -56,10 +56,10 @@ const ThankYou = () => {
     );
   }
 
-  const subtotal = order.items?.reduce((sum, item) => sum + (item.product?.price || 0) * item.quantity, 0) || 0;
-  const shipping = order.shippingFee || 0;
+  const subtotal = order.items?.reduce((sum, item) => sum + (item.price || item.product?.price || 0) * item.quantity, 0) || order.subtotal || 0;
+  const shipping = order.shipping || 0;
   const discount = order.discount || 0;
-  const total = order.totalAmount || subtotal + shipping - discount;
+  const total = order.total || (subtotal + shipping - discount);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">

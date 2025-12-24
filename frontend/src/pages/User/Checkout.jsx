@@ -201,7 +201,10 @@ const Checkout = () => {
           description: 'Order Payment',
           handler: async (response) => {
             try {
-              await axios.post(
+              setLoading(true); // Show loading state
+              toast.loading('Verifying payment...', { id: 'payment-verification' });
+              
+              const verifyResponse = await axios.post(
                 `${API_URL}/orders/verify-payment`,
                 {
                   razorpay_order_id: response.razorpay_order_id,
@@ -213,11 +216,31 @@ const Checkout = () => {
                   headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                 }
               );
-              toast.success('Payment successful!');
-              navigate(`/thank-you/${data.order._id}`);
+
+              if (verifyResponse.data && verifyResponse.data.success) {
+                // Clear cart after successful payment
+                await dispatch(fetchCart());
+                
+                toast.success('Payment successful! Order placed successfully.', { id: 'payment-verification' });
+                
+                // Small delay to show success message
+                setTimeout(() => {
+                  navigate(`/thank-you/${data.order._id}`);
+                }, 500);
+              } else {
+                throw new Error('Payment verification failed');
+              }
             } catch (error) {
-              toast.error('Payment verification failed');
-              navigate('/payment-failed');
+              console.error('Payment verification error:', error);
+              const errorMessage = error.response?.data?.message || error.message || 'Payment verification failed';
+              toast.error(errorMessage, { id: 'payment-verification' });
+              
+              // Redirect to payment failed page
+              setTimeout(() => {
+                navigate('/payment-failed');
+              }, 1500);
+            } finally {
+              setLoading(false);
             }
           },
           prefill: {

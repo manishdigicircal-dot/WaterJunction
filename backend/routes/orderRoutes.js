@@ -278,11 +278,17 @@ router.post('/verify-payment', protect, [
     }
 
     // Reload order to get updated Shipmozo fields
-    const updatedOrder = await Order.findById(order._id);
+    const updatedOrder = await Order.findById(order._id).populate('items.product');
+
+    console.log(`✅ Payment verified successfully for order ${order.orderNumber}. Status: ${updatedOrder.status}, PaymentStatus: ${updatedOrder.paymentStatus}`);
 
     res.json({ success: true, order: updatedOrder });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Payment verification error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message || 'Payment verification failed'
+    });
   }
 });
 
