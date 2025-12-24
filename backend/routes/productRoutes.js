@@ -610,8 +610,15 @@ router.post('/', protect, admin, uploadProductFiles.fields([
     // Remove images and video from productData to avoid conflicts - we'll set them separately
     const { images: _, video: __, ...cleanProductData } = productData;
 
-    console.log('Creating product with images:', images.length);
-    console.log('Images preview:', images.slice(0, 1).map(img => img.substring(0, 80) + '...'));
+    console.log('📦 Creating product with images array:', images.length);
+    console.log('📦 Images array content:', images);
+    if (images.length > 0) {
+      console.log('📦 First image preview:', images[0].substring(0, 100));
+      console.log('📦 Image is Cloudinary URL:', images[0].startsWith('http'));
+    } else {
+      console.warn('⚠️ WARNING: images array is EMPTY before product creation!');
+      console.warn('⚠️ This means no images were uploaded or preserved.');
+    }
 
     // Check MongoDB connection before creating
     if (mongoose.connection.readyState !== 1) {
@@ -625,12 +632,22 @@ router.post('/', protect, admin, uploadProductFiles.fields([
     console.log('⏳ Creating product in database...');
     const createStartTime = Date.now();
     
-    // Wrap Product.create in timeout
-    const createPromise = Product.create({
+    // Prepare product data with images
+    const productToCreate = {
       ...cleanProductData,
-      images: images.length > 0 ? images : [], // Ensure images array is always set
+      images: images, // Use images array directly - don't conditionally set to []
       video: video || ''
+    };
+    
+    console.log('📦 Product data being created:', {
+      name: productToCreate.name,
+      imagesCount: productToCreate.images?.length || 0,
+      images: productToCreate.images,
+      hasImages: Array.isArray(productToCreate.images) && productToCreate.images.length > 0
     });
+    
+    // Wrap Product.create in timeout
+    const createPromise = Product.create(productToCreate);
     
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Product creation timeout after 30 seconds')), 30000);
