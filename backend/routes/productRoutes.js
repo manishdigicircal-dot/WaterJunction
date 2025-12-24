@@ -173,6 +173,13 @@ router.get('/', [
           
           const queryTime = Date.now() - startTime;
           console.log(`✅ Products fetched WITH images in ${queryTime}ms: ${productsData.length} products`);
+          // Debug: Log first product's images
+          if (productsData.length > 0 && productsData[0].images) {
+            console.log('📸 Sample product images:', productsData[0].images.length, 'images');
+            if (productsData[0].images.length > 0) {
+              console.log('📸 Sample image URL:', productsData[0].images[0].substring(0, 100));
+            }
+          }
         } catch (aggErr) {
           console.warn('⚠️ Query with images failed, falling back to optimized query:', aggErr.message);
           // Fall through to optimized query below
@@ -477,6 +484,11 @@ router.post('/', protect, admin, uploadProductFiles.fields([
       
       const uploadTime = Date.now() - uploadStartTime;
       console.log(`✅ Uploaded ${validImages.length}/${req.files.images.length} images to Cloudinary in ${uploadTime}ms`);
+      if (validImages.length > 0) {
+        console.log('📸 Uploaded image URLs:', validImages.map(url => url.substring(0, 80) + '...'));
+      } else {
+        console.warn('⚠️ No valid images were uploaded!');
+      }
     } else {
       console.log('No new image files uploaded');
     }
@@ -595,6 +607,10 @@ router.post('/', protect, admin, uploadProductFiles.fields([
     
     const createTime = Date.now() - createStartTime;
     console.log(`✅ Product created successfully in ${createTime}ms with ${product.images?.length || 0} images (all Cloudinary URLs)`);
+    console.log('📸 Product images after creation:', product.images);
+    if (product.images && product.images.length > 0) {
+      console.log('📸 First image URL:', product.images[0].substring(0, 100));
+    }
 
     res.status(201).json({ success: true, product });
   } catch (error) {
