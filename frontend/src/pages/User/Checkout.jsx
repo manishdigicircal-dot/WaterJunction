@@ -192,6 +192,9 @@ const Checkout = () => {
           return;
         }
         
+        // Store order ID in variable for handler
+        const orderIdForHandler = data.order._id;
+        
         const options = {
           key: RAZORPAY_KEY_ID,
           amount: data.razorpayOrder.amount,
@@ -199,9 +202,14 @@ const Checkout = () => {
           order_id: data.razorpayOrder.id,
           name: 'WaterJunction',
           description: 'Order Payment',
-          handler: async (response) => {
+          handler: async function(response) {
             try {
-              setLoading(true); // Show loading state
+              // Close Razorpay modal immediately
+              if (window.Razorpay && razorpayInstance) {
+                razorpayInstance.close();
+              }
+              
+              setLoading(true);
               toast.loading('Verifying payment...', { id: 'payment-verification' });
               
               const verifyResponse = await axios.post(
@@ -210,7 +218,7 @@ const Checkout = () => {
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_signature: response.razorpay_signature,
-                  orderId: data.order._id
+                  orderId: orderIdForHandler
                 },
                 {
                   headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
@@ -221,12 +229,10 @@ const Checkout = () => {
                 // Clear cart after successful payment
                 await dispatch(fetchCart());
                 
-                toast.success('Payment successful! Order placed successfully.', { id: 'payment-verification' });
+                toast.success('Payment successful! Redirecting...', { id: 'payment-verification' });
                 
-                // Small delay to show success message
-                setTimeout(() => {
-                  navigate(`/thank-you/${data.order._id}`);
-                }, 500);
+                // Immediately redirect to thank you page
+                window.location.href = `/thank-you/${orderIdForHandler}`;
               } else {
                 throw new Error('Payment verification failed');
               }
@@ -237,7 +243,7 @@ const Checkout = () => {
               
               // Redirect to payment failed page
               setTimeout(() => {
-                navigate('/payment-failed');
+                window.location.href = '/payment-failed';
               }, 1500);
             } finally {
               setLoading(false);
