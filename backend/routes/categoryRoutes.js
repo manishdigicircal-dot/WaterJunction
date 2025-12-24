@@ -243,16 +243,6 @@ router.delete('/:id', protect, admin, async (req, res) => {
 
 export default router;
 
-
-import jwt from 'jsonwebtoken';
-import Category from '../models/Category.js';
-import User from '../models/User.js';
-import { protect, admin } from '../middleware/authMiddleware.js';
-import { uploadCategoryFiles, uploadToCloudinary } from '../utils/upload.js';
-import { getCachedCategories, setCachedCategories, clearCategoriesCache } from '../utils/cache.js';
-
-const router = express.Router();
-
 // @route   GET /api/categories
 // @desc    Get all categories (all categories if authenticated admin, only active for public)
 // @access  Public
