@@ -204,12 +204,6 @@ const Checkout = () => {
           description: 'Order Payment',
           handler: async function(response) {
             try {
-              // Close Razorpay modal immediately
-              if (window.Razorpay && razorpayInstance) {
-                razorpayInstance.close();
-              }
-              
-              setLoading(true);
               toast.loading('Verifying payment...', { id: 'payment-verification' });
               
               const verifyResponse = await axios.post(
@@ -227,12 +221,14 @@ const Checkout = () => {
 
               if (verifyResponse.data && verifyResponse.data.success) {
                 // Clear cart after successful payment
-                await dispatch(fetchCart());
+                dispatch(fetchCart());
                 
                 toast.success('Payment successful! Redirecting...', { id: 'payment-verification' });
                 
-                // Immediately redirect to thank you page
-                window.location.href = `/thank-you/${orderIdForHandler}`;
+                // Use window.location.href for hard redirect (automatically closes Razorpay popup)
+                setTimeout(() => {
+                  window.location.href = `/thank-you/${orderIdForHandler}`;
+                }, 1000);
               } else {
                 throw new Error('Payment verification failed');
               }
@@ -244,9 +240,7 @@ const Checkout = () => {
               // Redirect to payment failed page
               setTimeout(() => {
                 window.location.href = '/payment-failed';
-              }, 1500);
-            } finally {
-              setLoading(false);
+              }, 2000);
             }
           },
           prefill: {
@@ -264,7 +258,13 @@ const Checkout = () => {
           razorpayInstance.on('payment.failed', function (response) {
             console.error('Payment failed:', response);
             toast.error('Payment failed. Please try again.');
-            navigate('/payment-failed');
+            setTimeout(() => {
+              window.location.href = '/payment-failed';
+            }, 1500);
+          });
+          
+          razorpayInstance.on('modal.ondismiss', function() {
+            setLoading(false);
           });
           razorpayInstance.open();
         } else {
