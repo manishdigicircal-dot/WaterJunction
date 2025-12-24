@@ -19,7 +19,7 @@ const AdminProducts = () => {
 
   const fetchProducts = async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/products`, {
+      const { data } = await axios.get(`${API_URL}/products?withImages=true`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       setProducts(data.products || []);

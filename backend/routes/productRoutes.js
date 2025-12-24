@@ -17,10 +17,12 @@ router.get('/', [
   query('minPrice').optional().isFloat({ min: 0 }),
   query('maxPrice').optional().isFloat({ min: 0 }),
   query('search').optional().trim(),
-  query('sort').optional().isIn(['price-asc', 'price-desc', 'rating-desc', 'newest', 'name-asc'])
+  query('sort').optional().isIn(['price-asc', 'price-desc', 'rating-desc', 'newest', 'name-asc']),
+  query('withImages').optional().isBoolean().withMessage('withImages must be boolean')
 ], async (req, res) => {
   try {
     console.log('📦 Products API called:', req.query);
+    let withImages = req.query.withImages === 'true';
     
     // Check for validation errors
     const errors = validationResult(req);
@@ -119,42 +121,99 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      console.log('⏱️ Starting optimized product query strategy...');
+      console.log('⏱️ Starting product query strategy...', withImages ? '(with images)' : '(optimized)');
       const startTime = Date.now();
       
-      // Strategy: Fetch products WITHOUT images first (fast, reliable)
-      // Then fetch images separately in parallel
-      console.log('🚀 Step 1: Fetching products without images (fast query)...');
+      if (withImages) {
+        // Direct query with images for admin panel - uses aggregation with $slice
+        console.log('🖼️ Fetching products WITH images (admin mode)...');
+        try {
+          const pipeline = [
+            { $match: filter },
+            { $sort: sort },
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $project: {
+                name: 1,
+                slug: 1,
+                images: { $slice: ['$images', 1] }, // First image only
+                price: 1,
+                mrp: 1,
+                discountPercent: 1,
+                stock: 1,
+                ratings: 1,
+                category: 1,
+                isFeatured: 1,
+                createdAt: 1
+              }
+            }
+          ];
+          
+          const queryPromise = Product.aggregate(pipeline).option({ maxTimeMS: 20000 });
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Query with images timeout')), 18000);
+          });
+          
+          productsData = await Promise.race([queryPromise, timeoutPromise]);
+          
+          productsData = productsData.map(product => {
+            let firstImage = product.images && product.images.length > 0 ? product.images[0] : null;
+            // Filter out large base64 images
+            if (firstImage && firstImage.startsWith('data:') && firstImage.length > 500000) {
+              firstImage = null;
+            }
+            return {
+              ...product,
+              _id: product._id ? product._id.toString() : product._id,
+              category: product.category ? product.category.toString() : null,
+              images: firstImage ? [firstImage] : []
+            };
+          });
+          
+          const queryTime = Date.now() - startTime;
+          console.log(`✅ Products fetched WITH images in ${queryTime}ms: ${productsData.length} products`);
+        } catch (aggErr) {
+          console.warn('⚠️ Query with images failed, falling back to optimized query:', aggErr.message);
+          // Fall through to optimized query below
+          withImages = false; // Will use optimized query
+        }
+      }
       
-      // Fast query without images - always works quickly
-      let simpleQuery = Product.find(filter)
-        .select('name slug price mrp discountPercent stock ratings category isFeatured createdAt')
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean()
-        .maxTimeMS(8000);
-      
-      productsData = await Promise.race([
-        simpleQuery,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Fast query timeout')), 7000))
-      ]);
-      
-      const fastQueryTime = Date.now() - startTime;
-      console.log(`✅ Products fetched WITHOUT images in ${fastQueryTime}ms: ${productsData.length} products`);
-      
-      // Convert ObjectIds to strings
-      productsData = productsData.map(product => ({
-        ...product,
-        _id: product._id ? product._id.toString() : product._id,
-        category: product.category ? product.category.toString() : null,
-        images: [] // Will be populated below
-      }));
-      
-      // Step 2: Fetch first image for each product (only if we have products)
-      if (productsData.length > 0) {
-        console.log('🖼️ Step 2: Fetching first image for each product (parallel query)...');
-        const imageStartTime = Date.now();
+      if (!withImages) {
+        // Strategy: Fetch products WITHOUT images first (fast, reliable)
+        // Then fetch images separately in parallel
+        console.log('🚀 Step 1: Fetching products without images (fast query)...');
+        
+        // Fast query without images - always works quickly
+        let simpleQuery = Product.find(filter)
+          .select('name slug price mrp discountPercent stock ratings category isFeatured createdAt')
+          .sort(sort)
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .maxTimeMS(8000);
+        
+        productsData = await Promise.race([
+          simpleQuery,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Fast query timeout')), 7000))
+        ]);
+        
+        const fastQueryTime = Date.now() - startTime;
+        console.log(`✅ Products fetched WITHOUT images in ${fastQueryTime}ms: ${productsData.length} products`);
+        
+        // Convert ObjectIds to strings
+        productsData = productsData.map(product => ({
+          ...product,
+          _id: product._id ? product._id.toString() : product._id,
+          category: product.category ? product.category.toString() : null,
+          images: [] // Will be populated below
+        }));
+        
+        // Step 2: Fetch first image for each product (only if we have products)
+        if (productsData.length > 0) {
+          console.log('🖼️ Step 2: Fetching first image for each product (parallel query)...');
+          const imageStartTime = Date.now();
         
         try {
           const productIds = productsData.map(p => p._id);
@@ -215,6 +274,7 @@ router.get('/', [
           // Products already have empty images array, so continue
           const totalTime = Date.now() - startTime;
           console.log(`✅ Products loaded without images in ${totalTime}ms`);
+          }
         }
       }
       
