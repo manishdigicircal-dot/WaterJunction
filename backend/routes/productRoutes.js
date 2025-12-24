@@ -119,19 +119,39 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      console.log('⏱️ Starting Product.find() query (simplified)...');
+      console.log('⏱️ Starting Product query (using aggregation)...');
       const startTime = Date.now();
       
-      // Try simplest query first - no select, no sort, just basic find with limit
-      console.log('🔍 Attempting simplest query first...');
+      // Use aggregation pipeline instead of find - sometimes faster
+      console.log('🔍 Attempting aggregation pipeline...');
       try {
-        productsData = await Product.find({ isActive: true })
-          .limit(limit)
-          .lean()
-          .maxTimeMS(10000);
+        const pipeline = [
+          { $match: { isActive: true } },
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              name: 1,
+              slug: 1,
+              images: 1,
+              price: 1,
+              mrp: 1,
+              discountPercent: 1,
+              stock: 1,
+              ratings: 1,
+              category: 1,
+              isFeatured: 1,
+              createdAt: 1
+            }
+          }
+        ];
+        
+        productsData = await Product.aggregate(pipeline)
+          .option({ maxTimeMS: 10000 });
         
         const queryTime = Date.now() - startTime;
-        console.log(`✅ Simple query succeeded in ${queryTime}ms: ${productsData.length} products`);
+        console.log(`✅ Aggregation query succeeded in ${queryTime}ms: ${productsData.length} products`);
         
         // Now apply select, sort, and skip in memory if we got results
         if (productsData.length > 0) {
@@ -192,26 +212,36 @@ router.get('/', [
         const categoryIds = [...new Set(productsData.map(p => p.category).filter(Boolean))];
         if (categoryIds.length > 0) {
           const Category = mongoose.model('Category');
-          const categories = await Category.find({ _id: { $in: categoryIds } })
+          // Convert string IDs back to ObjectId for query
+          const objectIds = categoryIds.map(id => new mongoose.Types.ObjectId(id));
+          const categories = await Category.find({ _id: { $in: objectIds } })
             .select('name slug')
             .lean()
             .maxTimeMS(5000);
           
           const categoryMap = {};
           categories.forEach(cat => {
-            categoryMap[cat._id.toString()] = cat;
+            categoryMap[cat._id.toString()] = {
+              _id: cat._id.toString(),
+              name: cat.name,
+              slug: cat.slug
+            };
           });
           
           productsData = productsData.map(product => ({
             ...product,
-            category: product.category ? categoryMap[product.category.toString()] || null : null
+            category: product.category ? (categoryMap[product.category] || null) : null
           }));
           console.log('✅ Categories populated');
         }
       }
     } catch (populateErr) {
       console.warn('⚠️ Category populate failed, continuing without:', populateErr.message);
-      // Continue without populated categories
+      // Continue without populated categories - set category to null
+      productsData = productsData.map(product => ({
+        ...product,
+        category: null
+      }));
     }
     
     // Count total documents
