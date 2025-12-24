@@ -119,42 +119,81 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      console.log('⏱️ Starting Product query (simple find without images for fast loading)...');
+      console.log('⏱️ Starting Product query (with first image only)...');
       const startTime = Date.now();
       
-      // Use simple find() WITHOUT images - this works reliably and fast
-      // Images will be shown as placeholder or can be loaded on product detail page
-      console.log('🔍 Fetching products WITHOUT images (fast and reliable)...');
+      // Use aggregation to fetch products with ONLY first image using $slice
+      // This reduces document size while still showing images
+      console.log('🔍 Fetching products with first image only (optimized)...');
       try {
-        let query = Product.find({ isActive: true })
-          .select('name slug price mrp discountPercent stock ratings category isFeatured createdAt')
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit)
-          .lean()
-          .maxTimeMS(15000); // 15 seconds
+        const pipeline = [
+          { $match: { isActive: true } },
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              name: 1,
+              slug: 1,
+              images: { $slice: ['$images', 1] }, // ONLY first image - reduces size
+              price: 1,
+              mrp: 1,
+              discountPercent: 1,
+              stock: 1,
+              ratings: 1,
+              category: 1,
+              isFeatured: 1,
+              createdAt: 1
+            }
+          }
+        ];
         
-        const queryPromise = query;
+        const queryPromise = Product.aggregate(pipeline).option({ maxTimeMS: 25000 });
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Query timeout after 12 seconds')), 12000);
+          setTimeout(() => reject(new Error('Query timeout after 22 seconds')), 22000);
         });
         
-        console.log('⏳ Waiting for products query...');
+        console.log('⏳ Waiting for products query with images...');
         productsData = await Promise.race([queryPromise, timeoutPromise]);
         
         const queryTime = Date.now() - startTime;
-        console.log(`✅ Products fetched in ${queryTime}ms: ${productsData.length} products`);
+        console.log(`✅ Products fetched in ${queryTime}ms: ${productsData.length} products with images`);
         
-        // Convert ObjectId to string and add empty images array
+        // Convert ObjectId to string
         productsData = productsData.map(product => ({
           ...product,
           _id: product._id ? product._id.toString() : product._id,
           category: product.category ? product.category.toString() : null,
-          images: [] // Empty images array - images available on product detail page
+          images: product.images || [] // Include first image from aggregation
         }));
-      } catch (simpleErr) {
-        console.error('❌ Simple query also failed:', simpleErr.message);
-        throw simpleErr;
+      } catch (aggErr) {
+        console.warn('⚠️ Aggregation with images failed, trying simple query:', aggErr.message);
+        // Fallback: Try simple query without images if aggregation fails
+        try {
+          let simpleQuery = Product.find({ isActive: true })
+            .select('name slug price mrp discountPercent stock ratings category isFeatured createdAt')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean()
+            .maxTimeMS(10000);
+          
+          productsData = await Promise.race([
+            simpleQuery,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Simple query timeout')), 8000))
+          ]);
+          
+          productsData = productsData.map(product => ({
+            ...product,
+            _id: product._id ? product._id.toString() : product._id,
+            category: product.category ? product.category.toString() : null,
+            images: [] // No images in fallback mode
+          }));
+          console.log(`⚠️ Fallback: Fetched ${productsData.length} products without images`);
+        } catch (simpleErr) {
+          console.error('❌ Both aggregation and simple query failed:', simpleErr.message);
+          throw simpleErr;
+        }
       }
       
       if (productsData.length === 0) {
