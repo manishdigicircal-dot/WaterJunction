@@ -91,10 +91,9 @@ const Cart = () => {
     return sum + (price * quantity);
   }, 0);
 
-  const shipping = subtotal >= 500 ? 0 : 50;
+  const shipping = 0; // Free shipping for all orders
   const tax = Math.round(subtotal * 0.18);
   const total = subtotal + shipping + tax;
-  const savings = subtotal >= 500 ? 50 : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 relative overflow-hidden">
@@ -244,15 +243,6 @@ const Cart = () => {
                   </span>
                 </div>
 
-                {savings > 0 && (
-                  <div className="flex justify-between text-green-600 bg-green-50 p-3 rounded-lg">
-                    <span className="flex items-center">
-                      <FiCheckCircle className="w-4 h-4 mr-1" />
-                      You saved
-                    </span>
-                    <span className="font-bold">₹{savings}</span>
-                  </div>
-                )}
 
                 <div className="flex justify-between text-gray-700">
                   <span>Tax (GST 18%)</span>
@@ -269,13 +259,6 @@ const Cart = () => {
                 </div>
               </div>
 
-              {subtotal < 500 && (
-                <div className="mb-6 p-4 bg-gradient-to-r from-cyan-50 to-blue-50 rounded-xl border border-cyan-200">
-                  <p className="text-sm text-gray-700">
-                    <span className="font-semibold text-cyan-600">₹{500 - subtotal}</span> away from free shipping!
-                  </p>
-                </div>
-              )}
 
               <Link
                 to="/checkout"

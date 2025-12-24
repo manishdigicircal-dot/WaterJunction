@@ -313,7 +313,7 @@ const Checkout = () => {
       return sum;
     }
   }, 0);
-  const shipping = subtotal >= 500 ? 0 : 50;
+  const shipping = 0; // Free shipping for all orders
   const tax = Math.round(subtotal * 0.18);
   const total = subtotal + shipping + tax;
 
