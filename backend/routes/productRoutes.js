@@ -145,9 +145,25 @@ router.get('/', [
           
           productsData = await Promise.race([queryPromise, timeoutPromise]);
           
+          // Debug: Check raw data from database
+          console.log('🔍 Raw products from DB (first product):', {
+            _id: productsData[0]?._id,
+            name: productsData[0]?.name,
+            imagesField: productsData[0]?.images,
+            imagesType: typeof productsData[0]?.images,
+            imagesIsArray: Array.isArray(productsData[0]?.images),
+            imagesLength: productsData[0]?.images?.length
+          });
+          
           // Process images - keep only first image and filter large base64
           productsData = productsData.map(product => {
             let imagesArray = product.images || [];
+            console.log(`🔍 Product ${product._id}: images from DB =`, {
+              isArray: Array.isArray(imagesArray),
+              length: imagesArray?.length,
+              firstImage: imagesArray?.[0]?.substring(0, 80)
+            });
+            
             // Get only first image
             let firstImage = Array.isArray(imagesArray) && imagesArray.length > 0 ? imagesArray[0] : null;
             
@@ -172,6 +188,8 @@ router.get('/', [
           // Debug: Log sample
           if (productsWithImages.length > 0) {
             console.log('📸 Sample image URL:', productsWithImages[0].images[0].substring(0, 100) + '...');
+          } else {
+            console.warn('⚠️ NO PRODUCTS WITH IMAGES FOUND! All products have empty images array.');
           }
         } catch (simpleErr) {
           console.error('❌ Simple query with images failed:', simpleErr.message);
