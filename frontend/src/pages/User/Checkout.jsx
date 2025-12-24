@@ -258,12 +258,8 @@ const Checkout = () => {
         if (window.Razorpay) {
           const razorpayInstance = new window.Razorpay(options);
           
-          // Store instance reference in options for handler to access if needed
-          options._instance = razorpayInstance;
-          
           razorpayInstance.on('payment.failed', function (response) {
             console.error('Payment failed:', response);
-            razorpayInstance.close();
             toast.error('Payment failed. Please try again.');
             setTimeout(() => {
               window.location.href = '/payment-failed';
