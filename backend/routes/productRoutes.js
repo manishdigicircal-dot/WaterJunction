@@ -125,75 +125,80 @@ router.get('/', [
       const startTime = Date.now();
       
       if (withImages) {
-        // Direct query with images for admin panel - uses aggregation with $slice
-        console.log('🖼️ Fetching products WITH images (admin mode)...');
+        // Simple direct query with images for admin panel - faster than aggregation
+        console.log('🖼️ Fetching products WITH images (admin mode - simple find query)...');
         try {
-          const pipeline = [
-            { $match: filter },
-            { $sort: sort },
-            { $skip: skip },
-            { $limit: limit },
-            {
-              $project: {
-                name: 1,
-                slug: 1,
-                images: { $slice: ['$images', 1] }, // First image only
-                price: 1,
-                mrp: 1,
-                discountPercent: 1,
-                stock: 1,
-                ratings: 1,
-                category: 1,
-                isFeatured: 1,
-                createdAt: 1
-              }
-            }
-          ];
+          // Use simple find() with select() - much faster than aggregation
+          // Include images field directly in select
+          let queryWithImages = Product.find(filter)
+            .select('name slug images price mrp discountPercent stock ratings category isFeatured createdAt')
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .lean()
+            .maxTimeMS(20000); // 20 seconds timeout for slow MongoDB
           
-          const queryPromise = Product.aggregate(pipeline).option({ maxTimeMS: 20000 });
+          const queryPromise = queryWithImages;
           const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Query with images timeout')), 18000);
+            setTimeout(() => reject(new Error('Query with images timeout')), 19000);
           });
           
           productsData = await Promise.race([queryPromise, timeoutPromise]);
           
+          // Process images - keep only first image and filter large base64
           productsData = productsData.map(product => {
-            // Handle images array from aggregation
             let imagesArray = product.images || [];
+            // Get only first image
             let firstImage = Array.isArray(imagesArray) && imagesArray.length > 0 ? imagesArray[0] : null;
             
-            // Filter out large base64 images (but keep Cloudinary URLs and small base64)
+            // Filter out large base64 images (keep Cloudinary URLs always)
             if (firstImage && firstImage.startsWith('data:') && firstImage.length > 500000) {
               console.log(`⚠️ Skipping large base64 image for product ${product._id} (${Math.round(firstImage.length/1024)}KB)`);
               firstImage = null;
-            }
-            
-            // Log for debugging
-            if (firstImage) {
-              console.log(`✅ Image found for product ${product._id}: ${firstImage.substring(0, 80)}...`);
             }
             
             return {
               ...product,
               _id: product._id ? product._id.toString() : product._id,
               category: product.category ? product.category.toString() : null,
-              images: firstImage ? [firstImage] : []
+              images: firstImage ? [firstImage] : [] // Return as array with single image
             };
           });
           
           const queryTime = Date.now() - startTime;
-          console.log(`✅ Products fetched WITH images in ${queryTime}ms: ${productsData.length} products`);
-          // Debug: Log first product's images
-          if (productsData.length > 0 && productsData[0].images) {
-            console.log('📸 Sample product images:', productsData[0].images.length, 'images');
-            if (productsData[0].images.length > 0) {
-              console.log('📸 Sample image URL:', productsData[0].images[0].substring(0, 100));
-            }
+          const productsWithImages = productsData.filter(p => p.images && p.images.length > 0);
+          console.log(`✅ Products fetched WITH images in ${queryTime}ms: ${productsData.length} products (${productsWithImages.length} with images)`);
+          
+          // Debug: Log sample
+          if (productsWithImages.length > 0) {
+            console.log('📸 Sample image URL:', productsWithImages[0].images[0].substring(0, 100) + '...');
           }
-        } catch (aggErr) {
-          console.warn('⚠️ Query with images failed, falling back to optimized query:', aggErr.message);
-          // Fall through to optimized query below
-          withImages = false; // Will use optimized query
+        } catch (simpleErr) {
+          console.error('❌ Simple query with images failed:', simpleErr.message);
+          // Don't fall back - return products without images
+          console.warn('⚠️ Returning products without images due to query failure');
+          // Fetch products without images as fallback
+          let fallbackQuery = Product.find(filter)
+            .select('name slug price mrp discountPercent stock ratings category isFeatured createdAt')
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .lean()
+            .maxTimeMS(8000);
+          
+          productsData = await Promise.race([
+            fallbackQuery,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Fallback timeout')), 7000))
+          ]);
+          
+          productsData = productsData.map(product => ({
+            ...product,
+            _id: product._id ? product._id.toString() : product._id,
+            category: product.category ? product.category.toString() : null,
+            images: []
+          }));
+          
+          console.log(`⚠️ Fallback: Fetched ${productsData.length} products without images`);
         }
       }
       
