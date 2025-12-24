@@ -87,7 +87,9 @@ app.use(helmet({
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
     }
   },
-  crossOriginEmbedderPolicy: false // Allow embedding Razorpay checkout
+  crossOriginEmbedderPolicy: false, // Allow embedding Razorpay checkout
+  // Disable HSTS temporarily to avoid issues
+  hsts: false
 }));
 
 app.use(morgan('dev'));
@@ -126,6 +128,130 @@ const limiter = rateLimit({
   skip: (req) => {
     // Skip rate limiting for health checks
     return req.path === '/api/health';
+  }
+});
+
+// Apply rate limiting to all API routes
+app.use('/api/', limiter);
+
+// Health Check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', message: 'WaterJunction API is running' });
+});
+
+// ============================================
+// API ROUTES - MUST BE BEFORE STATIC SERVING
+// ============================================
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/coupons', couponRoutes);
+app.use('/api/flash-sales', flashSaleRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/contact', contactRoutes);
+
+// ============================================
+// 404 HANDLER for unmatched API routes - BEFORE static serving
+// ============================================
+app.use((req, res, next) => {
+  // If it's an API route and hasn't been handled, send 404 JSON
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ 
+      success: false,
+      message: `API route not found: ${req.method} ${req.path}` 
+    });
+  }
+  next(); // Continue to next middleware (static serving or catch-all)
+});
+
+// ============================================
+// REACT FRONTEND SERVING - MUST BE AFTER ALL API ROUTES
+// ============================================
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+  });
+}
+
+// ============================================
+// ERROR HANDLERS - MUST BE ABSOLUTELY LAST
+// ============================================
+app.use(notFound);
+app.use(errorHandler);
+
+
+
+
+// Support both MONGO_URI and MONGODB_URI for compatibility
+const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+
+if (!mongoUri) {
+  console.error('❌ MONGO_URI or MONGODB_URI is missing in environment variables');
+  console.error('💡 Please set MONGO_URI or MONGODB_URI in your .env file');
+  console.error('💡 For MongoDB Atlas: mongodb+srv://username:password@cluster.mongodb.net/database');
+  console.error('💡 For local MongoDB: mongodb://localhost:27017/database');
+  process.exit(1);
+}
+
+mongoose
+  .connect(mongoUri, {
+    maxPoolSize: 50, // Increased pool size
+    minPoolSize: 5,
+    serverSelectionTimeoutMS: 60000, // Increased to 60 seconds
+    socketTimeoutMS: 90000, // Increased socket timeout to 90 seconds
+    connectTimeoutMS: 60000, // Increased connection timeout to 60 seconds
+    heartbeatFrequencyMS: 10000, // Keep connection alive
+    retryWrites: true,
+    retryReads: true,
+    // Additional options for better reliability
+    maxIdleTimeMS: 30000, // Close idle connections after 30 seconds
+    waitQueueTimeoutMS: 60000, // Wait for connection from pool
+  })
+  .then(() => {
+    console.log('✅ MongoDB Connected Successfully');
+    
+    // Handle connection events
+    mongoose.connection.on('error', (err) => {
+      console.error('❌ MongoDB connection error:', err);
+    });
+    
+    mongoose.connection.on('disconnected', () => {
+      console.warn('⚠️ MongoDB disconnected. Attempting to reconnect...');
+    });
+    
+    mongoose.connection.on('reconnected', () => {
+      console.log('✅ MongoDB reconnected');
+    });
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+  })
+  .catch((error) => {
+    console.error('❌ MongoDB Connection Error:', error);
+    console.error('❌ Connection details:', {
+      uri: mongoUri ? mongoUri.replace(/:[^:@]+@/, ':****@') : 'missing',
+      errorMessage: error.message,
+      errorName: error.name
+    });
+    process.exit(1);
+  });
+
+
+export default app;
+
+
+
+
   }
 });
 

@@ -71,8 +71,8 @@ router.post('/', protect, [
     for (const item of cart.items) {
       const product = item.product;
       if (!product || !product.isActive || product.stock < item.quantity) {
-        return res.status(400).json({ 
-          message: `${product?.name || 'Product'} is out of stock or unavailable` 
+        return res.status(400).json({
+          message: `${product?.name || 'Product'} is out of stock or unavailable`
         });
       }
 
@@ -123,7 +123,7 @@ router.post('/', protect, [
       try {
         // Check if Razorpay keys are configured
         if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-          return res.status(500).json({ 
+          return res.status(500).json({
             message: 'Razorpay keys are not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in your .env file',
             error: 'Missing Razorpay configuration'
           });
@@ -146,19 +146,19 @@ router.post('/', protect, [
         console.error('Razorpay order creation error:', error);
         // Check if it's a configuration error
         if (error.message && error.message.includes('not configured')) {
-          return res.status(500).json({ 
+          return res.status(500).json({
             message: 'Razorpay keys are not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in your .env file',
-            error: error.message 
+            error: error.message
           });
         }
         // Check if it's an API error from Razorpay
         if (error.error) {
-          return res.status(500).json({ 
+          return res.status(500).json({
             message: `Razorpay API error: ${error.error.description || error.error.message || 'Unknown error'}`,
-            error: error.error 
+            error: error.error
           });
         }
-        return res.status(500).json({ 
+        return res.status(500).json({
           message: 'Razorpay payment initialization failed. Please check your Razorpay configuration.',
           error: error.message || 'Unknown error'
         });
@@ -170,8 +170,8 @@ router.post('/', protect, [
     cart.coupon = undefined;
     await cart.save();
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       order,
       razorpayOrder: req.body.paymentMethod === 'razorpay' ? {
         id: order.razorpayOrderId,
@@ -205,7 +205,7 @@ router.post('/verify-payment', protect, [
     if (!process.env.RAZORPAY_KEY_SECRET) {
       return res.status(500).json({ message: 'Razorpay key secret not configured' });
     }
-    
+
     const text = `${razorpay_order_id}|${razorpay_payment_id}`;
     const generatedSignature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -246,7 +246,7 @@ router.post('/verify-payment', protect, [
       // Populate order with user data for Shipmozo
       const user = await User.findById(req.user.id);
       const orderWithItems = await Order.findById(order._id).populate('items.product');
-      
+
       const shipmozoResult = await shipmozoService.createShipment({
         order: orderWithItems,
         user: user
@@ -261,7 +261,7 @@ router.post('/verify-payment', protect, [
         order.shippingPending = false;
         order.status = 'packed'; // Update status to packed when shipment is created
         await order.save();
-        
+
         console.log(`✅ Shipmozo shipment created for order ${order.orderNumber}, AWB: ${shipmozoResult.awb}`);
       } else {
         // If Shipmozo fails, mark shipping as pending but don't fail the order
@@ -285,7 +285,7 @@ router.post('/verify-payment', protect, [
     res.json({ success: true, order: updatedOrder });
   } catch (error) {
     console.error('Payment verification error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: error.message || 'Payment verification failed'
     });
@@ -300,7 +300,7 @@ router.get('/', protect, async (req, res) => {
     const orders = await Order.find({ user: req.user.id })
       .populate('items.product', 'name images')
       .sort({ createdAt: -1 });
-    
+
     res.json({ success: true, orders });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -355,7 +355,7 @@ router.put('/:id/cancel', protect, [
     order.status = 'cancelled';
     order.cancelledAt = new Date();
     order.cancellationReason = req.body.reason || 'Cancelled by user';
-    
+
     if (order.paymentStatus === 'paid') {
       order.paymentStatus = 'refunded';
       // TODO: Initiate refund through Razorpay
@@ -460,7 +460,7 @@ router.get('/:id/track', protect, async (req, res) => {
 
     // Check if AWB exists
     if (!order.shipmozoAwb) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Tracking not available. Shipment not created yet.',
         shippingPending: order.shippingPending
       });
@@ -475,7 +475,7 @@ router.get('/:id/track', protect, async (req, res) => {
       if (trackingResult.tracking_url) {
         order.trackingUrl = trackingResult.tracking_url;
       }
-      
+
       // Update order status based on shipment status
       if (trackingResult.status === 'delivered' && order.status !== 'delivered') {
         order.status = 'delivered';
@@ -483,7 +483,7 @@ router.get('/:id/track', protect, async (req, res) => {
       } else if (trackingResult.status === 'in_transit' && order.status === 'packed') {
         order.status = 'shipped';
       }
-      
+
       await order.save();
 
       return res.json({
@@ -527,7 +527,7 @@ router.get('/:id/track', protect, async (req, res) => {
 router.post('/:id/create-shipment', protect, admin, async (req, res) => {
   try {
     const order = await Order.findById(req.params.id).populate('items.product');
-    
+
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
@@ -566,7 +566,7 @@ router.post('/:id/create-shipment', protect, admin, async (req, res) => {
     } else {
       order.shippingPending = true;
       await order.save();
-      
+
       return res.status(500).json({
         success: false,
         message: shipmozoResult.error || 'Failed to create shipment',
@@ -580,4 +580,3 @@ router.post('/:id/create-shipment', protect, admin, async (req, res) => {
 });
 
 export default router;
-

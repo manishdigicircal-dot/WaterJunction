@@ -85,22 +85,16 @@ const Checkout = () => {
   }, [user]);
 
   useEffect(() => {
-    const loadRazorpayScript = async () => {
+    // Razorpay script is loaded from index.html, just check if it's ready
+    const checkRazorpayReady = () => {
       if (window.Razorpay) {
         setRazorpayReady(true);
-        return;
+              } else {
+        // If not ready yet, wait a bit and check again
+        setTimeout(checkRazorpayReady, 500);
       }
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.async = true;
-      script.onload = () => setRazorpayReady(true);
-      script.onerror = () => {
-        setRazorpayReady(false);
-        toast.error('Failed to load payment gateway. Please refresh.');
-      };
-      document.body.appendChild(script);
     };
-    loadRazorpayScript();
+    checkRazorpayReady();
   }, []);
 
   const handleAddressSubmit = async (e) => {
