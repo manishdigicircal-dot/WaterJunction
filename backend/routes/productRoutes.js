@@ -103,25 +103,63 @@ router.get('/', [
     
     // Build query with optimizations
     console.log('🔎 Executing products query...');
-    const productsQuery = Product.find(filter)
-      .select(fieldsToSelect)
-      .populate({
-        path: 'category',
-        select: 'name slug',
-        options: { lean: true }
-      })
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .lean()
-      .maxTimeMS(15000); // 15 seconds for query timeout
     
-    // Execute queries in parallel for better performance
-    console.log('⏳ Waiting for database query...');
-    const [productsData, total] = await Promise.all([
-      productsQuery,
-      Product.countDocuments(filter).maxTimeMS(15000)
-    ]);
+    // First try without populate to avoid potential issues
+    console.log('⏳ Step 1: Fetching products without populate...');
+    let productsData;
+    try {
+      productsData = await Product.find(filter)
+        .select(fieldsToSelect)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .maxTimeMS(8000);
+      console.log(`✅ Products fetched: ${productsData.length} products`);
+    } catch (err) {
+      console.error('❌ Error fetching products:', err.message);
+      throw err;
+    }
+    
+    // Then populate categories separately if needed
+    console.log('⏳ Step 2: Populating categories...');
+    try {
+      if (productsData.length > 0) {
+        const categoryIds = [...new Set(productsData.map(p => p.category).filter(Boolean))];
+        if (categoryIds.length > 0) {
+          const Category = mongoose.model('Category');
+          const categories = await Category.find({ _id: { $in: categoryIds } })
+            .select('name slug')
+            .lean()
+            .maxTimeMS(5000);
+          
+          const categoryMap = {};
+          categories.forEach(cat => {
+            categoryMap[cat._id.toString()] = cat;
+          });
+          
+          productsData = productsData.map(product => ({
+            ...product,
+            category: product.category ? categoryMap[product.category.toString()] || null : null
+          }));
+          console.log('✅ Categories populated');
+        }
+      }
+    } catch (populateErr) {
+      console.warn('⚠️ Category populate failed, continuing without:', populateErr.message);
+      // Continue without populated categories
+    }
+    
+    // Count total documents
+    console.log('⏳ Step 3: Counting total documents...');
+    let total;
+    try {
+      total = await Product.countDocuments(filter).maxTimeMS(5000);
+      console.log(`✅ Total count: ${total}`);
+    } catch (countErr) {
+      console.warn('⚠️ Count query failed, using products length:', countErr.message);
+      total = productsData.length;
+    }
     
     console.log(`✅ Found ${productsData.length} products, total: ${total}`);
     
