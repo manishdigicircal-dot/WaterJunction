@@ -194,6 +194,7 @@ const Checkout = () => {
         
         // Store order ID in variable for handler
         const orderIdForHandler = data.order._id;
+        let razorpayInstance = null;
         
         const options = {
           key: RAZORPAY_KEY_ID,
@@ -202,37 +203,44 @@ const Checkout = () => {
           order_id: data.razorpayOrder.id,
           name: 'WaterJunction',
           description: 'Order Payment',
-          handler: async function(response) {
-            try {
-              toast.loading('Verifying payment...', { id: 'payment-verification' });
-              
-              const verifyResponse = await axios.post(
-                `${API_URL}/orders/verify-payment`,
-                {
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature,
-                  orderId: orderIdForHandler
-                },
-                {
-                  headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-                }
-              );
-
+          handler: function(response) {
+            // Close Razorpay modal immediately
+            if (razorpayInstance) {
+              razorpayInstance.close();
+            }
+            
+            // Show loading message
+            toast.loading('Verifying payment...', { id: 'payment-verification' });
+            
+            // Verify payment asynchronously
+            axios.post(
+              `${API_URL}/orders/verify-payment`,
+              {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                orderId: orderIdForHandler
+              },
+              {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+              }
+            )
+            .then((verifyResponse) => {
               if (verifyResponse.data && verifyResponse.data.success) {
                 // Clear cart after successful payment
                 dispatch(fetchCart());
                 
                 toast.success('Payment successful! Redirecting...', { id: 'payment-verification' });
                 
-                // Use window.location.href for hard redirect (automatically closes Razorpay popup)
+                // Redirect to thank you page
                 setTimeout(() => {
                   window.location.href = `/thank-you/${orderIdForHandler}`;
-                }, 1000);
+                }, 800);
               } else {
                 throw new Error('Payment verification failed');
               }
-            } catch (error) {
+            })
+            .catch((error) => {
               console.error('Payment verification error:', error);
               const errorMessage = error.response?.data?.message || error.message || 'Payment verification failed';
               toast.error(errorMessage, { id: 'payment-verification' });
@@ -241,7 +249,7 @@ const Checkout = () => {
               setTimeout(() => {
                 window.location.href = '/payment-failed';
               }, 2000);
-            }
+            });
           },
           prefill: {
             name: user?.name,
