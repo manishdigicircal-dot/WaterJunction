@@ -22,6 +22,15 @@ const AdminProducts = () => {
       const { data } = await axios.get(`${API_URL}/products?withImages=true`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
+      console.log('📦 Admin products fetched:', data.products?.length || 0, 'products');
+      if (data.products && data.products.length > 0) {
+        console.log('📸 First product images:', data.products[0].images);
+        console.log('📸 First product:', { 
+          name: data.products[0].name, 
+          imagesCount: data.products[0].images?.length || 0,
+          firstImage: data.products[0].images?.[0]?.substring(0, 80)
+        });
+      }
       setProducts(data.products || []);
     } catch (error) {
       console.error('Error fetching products:', error);
