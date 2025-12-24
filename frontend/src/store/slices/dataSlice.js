@@ -94,17 +94,44 @@ export const fetchFeaturedProducts = createAsyncThunk(
 
       // Create a promise that wraps the axios call and transforms the response
       featuredProductsPromise = (async () => {
-        const response = await axios.get(`${API_URL}/products?limit=${limit}`, {
-          timeout: 30000, // 30 seconds
-          headers: {
-            'Cache-Control': 'no-cache'
+        try {
+          // First try to fetch featured products
+          let response = await axios.get(`${API_URL}/products?featured=true&limit=${limit}`, {
+            timeout: 30000, // 30 seconds
+            headers: {
+              'Cache-Control': 'no-cache'
+            }
+          });
+          
+          console.log('Featured products response:', response.data);
+          
+          // If no featured products found, fallback to all active products
+          if (!response.data?.products || response.data.products.length === 0) {
+            console.log('No featured products found, fetching all active products...');
+            response = await axios.get(`${API_URL}/products?limit=${limit}`, {
+              timeout: 30000,
+              headers: {
+                'Cache-Control': 'no-cache'
+              }
+            });
+            console.log('All products response:', response.data);
           }
-        });
-        // Transform to our format
-        return {
-          products: response.data?.products || [],
-          fromCache: false
-        };
+          
+          // Transform to our format
+          return {
+            products: response.data?.products || [],
+            fromCache: false
+          };
+        } catch (apiError) {
+          console.error('Error fetching products:', apiError);
+          console.error('API URL:', `${API_URL}/products`);
+          console.error('Error details:', {
+            message: apiError.message,
+            response: apiError.response?.data,
+            status: apiError.response?.status
+          });
+          throw apiError;
+        }
       })();
       
       const result = await featuredProductsPromise;
@@ -112,7 +139,9 @@ export const fetchFeaturedProducts = createAsyncThunk(
       return result;
     } catch (error) {
       featuredProductsPromise = null;
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch featured products');
+      console.error('fetchFeaturedProducts error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch featured products';
+      return rejectWithValue(errorMessage);
     }
   }
 );

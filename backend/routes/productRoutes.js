@@ -37,6 +37,11 @@ router.get('/', [
     // Build filter
     const filter = { isActive: true };
 
+    // Filter by featured products if requested
+    if (req.query.featured === 'true') {
+      filter.isFeatured = true;
+    }
+
     if (req.query.category) {
       // Validate and convert to ObjectId
       if (mongoose.Types.ObjectId.isValid(req.query.category)) {

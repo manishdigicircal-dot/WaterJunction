@@ -20,6 +20,7 @@ const Home = () => {
   const featuredProducts = useSelector((state) => state.data.featuredProducts || []);
   const categoriesLoading = useSelector((state) => state.data.loading.categories);
   const productsLoading = useSelector((state) => state.data.loading.featuredProducts);
+  const productsError = useSelector((state) => state.data.error.featuredProducts);
   const hasCategories = useSelector((state) => !!state.data.categories && state.data.categories.length > 0);
   const hasProducts = useSelector((state) => !!state.data.featuredProducts && state.data.featuredProducts.length > 0);
   
@@ -35,6 +36,16 @@ const Home = () => {
     dispatch(fetchCategories());
     dispatch(fetchFeaturedProducts(8));
   }, [dispatch]);
+
+  // Debug: Log products and errors
+  useEffect(() => {
+    console.log('Featured Products State:', {
+      products: featuredProducts,
+      loading: productsLoading,
+      error: productsError,
+      count: featuredProducts?.length || 0
+    });
+  }, [featuredProducts, productsLoading, productsError]);
 
   // Detect screen size for responsive testimonials
   useEffect(() => {
@@ -408,10 +419,23 @@ const Home = () => {
                 </Link>
               </div>
             </>
+          ) : productsError ? (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">⚠️</div>
+              <p className="text-red-500 text-lg mb-2">Error loading products</p>
+              <p className="text-gray-500 text-sm">{productsError}</p>
+              <button
+                onClick={() => dispatch(fetchFeaturedProducts(8))}
+                className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                Retry
+              </button>
+            </div>
           ) : (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">💧</div>
               <p className="text-gray-500 text-lg">No featured products available</p>
+              <p className="text-gray-400 text-sm mt-2">Please add products from the admin panel</p>
             </div>
           )}
         </div>
