@@ -153,40 +153,14 @@ router.get('/', [
         const queryTime = Date.now() - startTime;
         console.log(`✅ Aggregation query succeeded in ${queryTime}ms: ${productsData.length} products`);
         
-        // Now apply select, sort, and skip in memory if we got results
-        if (productsData.length > 0) {
-          // Apply select (only keep needed fields)
-          const fieldsArray = fieldsToSelect.split(' ');
-          productsData = productsData.map(product => {
-            const filtered = {};
-            fieldsArray.forEach(field => {
-              if (product[field] !== undefined) {
-                filtered[field] = product[field];
-              }
-            });
-            return filtered;
-          });
-          
-          // Apply sort in memory
-          productsData.sort((a, b) => {
-            if (sort.createdAt) {
-              const dateA = new Date(a.createdAt || 0);
-              const dateB = new Date(b.createdAt || 0);
-              return sort.createdAt === -1 ? dateB - dateA : dateA - dateB;
-            }
-            return 0;
-          });
-          
-          // Apply skip
-          if (skip > 0) {
-            productsData = productsData.slice(skip);
-          }
-          
-          // Apply limit again (in case we fetched more)
-          productsData = productsData.slice(0, limit);
-          
-          console.log(`✅ After in-memory processing: ${productsData.length} products`);
-        }
+        // Convert ObjectId to string and process images (aggregation already handled select, sort, skip, limit)
+        productsData = productsData.map(product => ({
+          ...product,
+          _id: product._id ? product._id.toString() : product._id,
+          category: product.category ? product.category.toString() : null,
+          // Only keep first image to reduce payload
+          images: product.images && product.images.length > 0 ? [product.images[0]] : []
+        }));
       } catch (simpleErr) {
         console.error('❌ Simple query also failed:', simpleErr.message);
         throw simpleErr;
