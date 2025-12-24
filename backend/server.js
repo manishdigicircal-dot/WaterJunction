@@ -201,11 +201,32 @@ if (!mongoUri) {
 mongoose
   .connect(mongoUri, {
     maxPoolSize: 10,
-    serverSelectionTimeoutMS: 5000,
+    minPoolSize: 2,
+    serverSelectionTimeoutMS: 30000, // Increased to 30 seconds
     socketTimeoutMS: 45000,
+    connectTimeoutMS: 30000, // Connection timeout
+    heartbeatFrequencyMS: 10000, // Keep connection alive
+    retryWrites: true,
+    retryReads: true,
+    // Additional options for stability
+    bufferMaxEntries: 0, // Disable mongoose buffering
+    bufferCommands: false, // Disable mongoose buffering
   })
   .then(() => {
     console.log('✅ MongoDB Connected Successfully');
+    
+    // Handle connection events
+    mongoose.connection.on('error', (err) => {
+      console.error('❌ MongoDB connection error:', err);
+    });
+    
+    mongoose.connection.on('disconnected', () => {
+      console.warn('⚠️ MongoDB disconnected. Attempting to reconnect...');
+    });
+    
+    mongoose.connection.on('reconnected', () => {
+      console.log('✅ MongoDB reconnected');
+    });
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
@@ -215,6 +236,11 @@ mongoose
   })
   .catch((error) => {
     console.error('❌ MongoDB Connection Error:', error);
+    console.error('❌ Connection details:', {
+      uri: mongoUri ? mongoUri.replace(/:[^:@]+@/, ':****@') : 'missing',
+      errorMessage: error.message,
+      errorName: error.name
+    });
     process.exit(1);
   });
 

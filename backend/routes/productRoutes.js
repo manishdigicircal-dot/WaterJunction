@@ -106,19 +106,35 @@ router.get('/', [
     
     // First try without populate to avoid potential issues
     console.log('⏳ Step 1: Fetching products without populate...');
+    console.log('📊 MongoDB connection state:', mongoose.connection.readyState, '(0=disconnected, 1=connected, 2=connecting, 3=disconnecting)');
+    
     let productsData;
     try {
+      // Check connection before query
+      if (mongoose.connection.readyState !== 1) {
+        console.warn('⚠️ MongoDB not connected, readyState:', mongoose.connection.readyState);
+        throw new Error('MongoDB connection not ready');
+      }
+      
       productsData = await Product.find(filter)
         .select(fieldsToSelect)
         .sort(sort)
         .skip(skip)
         .limit(limit)
         .lean()
-        .maxTimeMS(8000);
+        .maxTimeMS(20000); // Increased timeout to 20 seconds
       console.log(`✅ Products fetched: ${productsData.length} products`);
     } catch (err) {
       console.error('❌ Error fetching products:', err.message);
-      throw err;
+      console.error('❌ Error name:', err.name);
+      console.error('❌ Error code:', err.code);
+      if (err.name === 'MongoNetworkTimeoutError' || err.name === 'MongoServerSelectionError') {
+        // Return empty array instead of error for network issues
+        console.warn('⚠️ Network timeout, returning empty products array');
+        productsData = [];
+      } else {
+        throw err;
+      }
     }
     
     // Then populate categories separately if needed
@@ -154,8 +170,13 @@ router.get('/', [
     console.log('⏳ Step 3: Counting total documents...');
     let total;
     try {
-      total = await Product.countDocuments(filter).maxTimeMS(5000);
-      console.log(`✅ Total count: ${total}`);
+      if (mongoose.connection.readyState === 1) {
+        total = await Product.countDocuments(filter).maxTimeMS(15000); // Increased timeout
+        console.log(`✅ Total count: ${total}`);
+      } else {
+        console.warn('⚠️ MongoDB not connected, using products length for count');
+        total = productsData.length;
+      }
     } catch (countErr) {
       console.warn('⚠️ Count query failed, using products length:', countErr.message);
       total = productsData.length;
