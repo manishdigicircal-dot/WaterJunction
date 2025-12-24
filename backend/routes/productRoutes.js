@@ -154,33 +154,10 @@ router.get('/', [
           images: [] // Will fetch images separately
         }));
         
-        // If we got products, fetch images separately (optional - can be skipped for speed)
-        if (productsData.length > 0) {
-          console.log('📸 Fetching first image for each product...');
-          try {
-            const productIds = productsData.map(p => new mongoose.Types.ObjectId(p._id));
-            const productsWithImages = await Product.find({ _id: { $in: productIds } })
-              .select('_id images')
-              .lean()
-              .maxTimeMS(15000);
-            
-            const imageMap = {};
-            productsWithImages.forEach(p => {
-              if (p.images && p.images.length > 0) {
-                imageMap[p._id.toString()] = [p.images[0]]; // Only first image
-              }
-            });
-            
-            productsData = productsData.map(product => ({
-              ...product,
-              images: imageMap[product._id] || []
-            }));
-            console.log('✅ Images fetched and attached');
-          } catch (imgErr) {
-            console.warn('⚠️ Image fetch failed, continuing without images:', imgErr.message);
-            // Continue with empty images array
-          }
-        }
+        // Skip image fetch for now due to MongoDB timeout issues
+        // Images will be fetched on-demand when viewing product details
+        // This makes product list loading much faster
+        console.log('📸 Skipping image fetch for faster loading (images available in product details)');
       } catch (simpleErr) {
         console.error('❌ Simple query also failed:', simpleErr.message);
         throw simpleErr;
