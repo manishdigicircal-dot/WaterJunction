@@ -119,12 +119,13 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      console.log('⏱️ Starting Product query (trying with first image, fallback to without)...');
+      console.log('⏱️ Starting Product query (fetching with images - may take 20-25s)...');
       const startTime = Date.now();
       
-      // Strategy: Try to fetch with first image, but with shorter timeout
-      // If that fails, fallback to without images (fast and reliable)
-      console.log('🔍 Attempting to fetch products with first image (10s timeout)...');
+      // Strategy: Fetch products with first image using aggregation
+      // Increased timeout to 25 seconds for slow MongoDB connections
+      // Note: If products have base64 images, this will be slow but necessary
+      console.log('🔍 Fetching products with first image (25s timeout for slow MongoDB)...');
       try {
         const pipeline = [
           { $match: { isActive: true } },
@@ -148,9 +149,9 @@ router.get('/', [
           }
         ];
         
-        const queryPromise = Product.aggregate(pipeline).option({ maxTimeMS: 10000 });
+        const queryPromise = Product.aggregate(pipeline).option({ maxTimeMS: 30000 });
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Images query timeout after 8 seconds')), 8000);
+          setTimeout(() => reject(new Error('Images query timeout after 25 seconds')), 25000);
         });
         
         productsData = await Promise.race([queryPromise, timeoutPromise]);
@@ -158,43 +159,98 @@ router.get('/', [
         const queryTime = Date.now() - startTime;
         console.log(`✅ Products fetched WITH images in ${queryTime}ms: ${productsData.length} products`);
         
-        // Convert ObjectId to string
-        productsData = productsData.map(product => ({
-          ...product,
-          _id: product._id ? product._id.toString() : product._id,
-          category: product.category ? product.category.toString() : null,
-          images: product.images || [] // Include first image
-        }));
+        // Convert ObjectId to string and filter out base64 images if they're too large
+        // Keep only Cloudinary URLs or small base64 images
+        productsData = productsData.map(product => {
+          let firstImage = product.images && product.images.length > 0 ? product.images[0] : null;
+          
+          // If image is base64 and too large (>500KB), skip it to avoid slow rendering
+          if (firstImage && firstImage.startsWith('data:') && firstImage.length > 500000) {
+            console.log(`⚠️ Skipping large base64 image for product ${product._id} (${Math.round(firstImage.length/1024)}KB)`);
+            firstImage = null;
+          }
+          
+          return {
+            ...product,
+            _id: product._id ? product._id.toString() : product._id,
+            category: product.category ? product.category.toString() : null,
+            images: firstImage ? [firstImage] : [] // Include first image if available and not too large
+          };
+        });
       } catch (aggErr) {
-        console.warn('⚠️ Fetching with images failed (MongoDB slow), using fast query without images:', aggErr.message);
-        // Fallback: Fast query without images (always works)
+        console.warn('⚠️ Fetching with images timed out, retrying with longer timeout (35s)...', aggErr.message);
+        // Retry with even longer timeout - MongoDB Atlas can be very slow with base64 images
         try {
+          const retryPipeline = [
+            { $match: { isActive: true } },
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $project: {
+                name: 1,
+                slug: 1,
+                images: { $slice: ['$images', 1] },
+                price: 1,
+                mrp: 1,
+                discountPercent: 1,
+                stock: 1,
+                ratings: 1,
+                category: 1,
+                isFeatured: 1,
+                createdAt: 1
+              }
+            }
+          ];
+          
+          const retryPromise = Product.aggregate(retryPipeline).option({ maxTimeMS: 40000 });
+          const retryTimeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Retry query timeout after 35 seconds')), 35000);
+          });
+          
+          productsData = await Promise.race([retryPromise, retryTimeoutPromise]);
+          
+          const retryTime = Date.now() - startTime;
+          console.log(`✅ Products fetched WITH images (retry) in ${retryTime}ms: ${productsData.length} products`);
+          
+          productsData = productsData.map(product => {
+            let firstImage = product.images && product.images.length > 0 ? product.images[0] : null;
+            if (firstImage && firstImage.startsWith('data:') && firstImage.length > 500000) {
+              firstImage = null;
+            }
+            return {
+              ...product,
+              _id: product._id ? product._id.toString() : product._id,
+              category: product.category ? product.category.toString() : null,
+              images: firstImage ? [firstImage] : []
+            };
+          });
+        } catch (retryErr) {
+          console.warn('⚠️ Images fetch failed even with retry, fetching without images:', retryErr.message);
+          // Final fallback: Fast query without images
           let simpleQuery = Product.find({ isActive: true })
             .select('name slug price mrp discountPercent stock ratings category isFeatured createdAt')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
             .lean()
-            .maxTimeMS(8000);
+            .maxTimeMS(10000);
           
           productsData = await Promise.race([
             simpleQuery,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Simple query timeout')), 6000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Simple query timeout')), 8000))
           ]);
           
           productsData = productsData.map(product => ({
             ...product,
             _id: product._id ? product._id.toString() : product._id,
             category: product.category ? product.category.toString() : null,
-            images: [] // No images in fallback - images available on product detail page
+            images: [] // No images in final fallback
           }));
           
           const fallbackTime = Date.now() - startTime;
-          console.log(`✅ Fallback: Fetched ${productsData.length} products without images in ${fallbackTime}ms`);
-          console.log('ℹ️ Note: Images available on product detail page. MongoDB connection too slow for list view.');
-        } catch (simpleErr) {
-          console.error('❌ Both aggregation and simple query failed:', simpleErr.message);
-          throw simpleErr;
+          console.log(`✅ Final fallback: Fetched ${productsData.length} products without images in ${fallbackTime}ms`);
+          console.log('ℹ️ Note: Product images not available due to slow MongoDB connection. Images available on product detail page.');
         }
       }
       
