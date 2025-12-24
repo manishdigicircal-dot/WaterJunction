@@ -119,41 +119,34 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      console.log('⏱️ Starting Product query (using aggregation with timeout wrapper)...');
+      console.log('⏱️ Starting Product query (using simple find with minimal operations)...');
       const startTime = Date.now();
       
-      // Use aggregation pipeline instead of find - sometimes faster
-      console.log('🔍 Attempting aggregation pipeline...');
+      // Use simple find() instead of aggregation - more reliable with slow connections
+      console.log('🔍 Attempting simple find() query...');
       try {
-        const pipeline = [
-          { $match: { isActive: true } },
-          { $sort: { createdAt: -1 } },
-          { $skip: skip },
-          { $limit: limit },
-          {
-            $project: {
-              name: 1,
-              slug: 1,
-              images: { $slice: ['$images', 1] }, // Only first image
-              price: 1,
-              mrp: 1,
-              discountPercent: 1,
-              stock: 1,
-              ratings: 1,
-              category: 1,
-              isFeatured: 1,
-              createdAt: 1
-            }
-          }
-        ];
+        // Build query with minimal operations
+        let query = Product.find({ isActive: true });
         
-        // Wrap in Promise.race to add client-side timeout as backup
-        const queryPromise = Product.aggregate(pipeline, { maxTimeMS: 60000 });
+        // Add select to reduce data transfer
+        query = query.select('name slug images price mrp discountPercent stock ratings category isFeatured createdAt');
+        
+        // Add sort
+        query = query.sort({ createdAt: -1 });
+        
+        // Add pagination
+        query = query.skip(skip).limit(limit);
+        
+        // Use lean for better performance
+        query = query.lean();
+        
+        // Wrap in Promise.race to add client-side timeout
+        const queryPromise = query.maxTimeMS(30000);
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Aggregation query timeout after 30 seconds')), 30000);
+          setTimeout(() => reject(new Error('Query timeout after 25 seconds')), 25000);
         });
         
-        console.log('⏳ Waiting for aggregation query...');
+        console.log('⏳ Waiting for find() query...');
         productsData = await Promise.race([queryPromise, timeoutPromise]);
         
         const queryTime = Date.now() - startTime;
