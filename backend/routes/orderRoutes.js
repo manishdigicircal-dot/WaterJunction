@@ -4,9 +4,11 @@ import Order from '../models/Order.js';
 import Cart from '../models/Cart.js';
 import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
+import User from '../models/User.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
+import shipmozoService from '../services/shipmozoService.js';
 
 const router = express.Router();
 
@@ -98,7 +100,7 @@ router.post('/', protect, [
       }
     }
 
-    const shipping = subtotal >= 500 ? 0 : 50; // Free shipping above ₹500
+    const shipping = 0; // Free shipping for all orders
     const tax = Math.round((subtotal - discount) * 0.18); // 18% GST
     const total = subtotal - discount + shipping + tax;
 
@@ -239,7 +241,46 @@ router.post('/verify-payment', protect, [
       });
     }
 
-    res.json({ success: true, order });
+    // Create Shipmozo shipment after payment verification
+    try {
+      // Populate order with user data for Shipmozo
+      const user = await User.findById(req.user.id);
+      const orderWithItems = await Order.findById(order._id).populate('items.product');
+      
+      const shipmozoResult = await shipmozoService.createShipment({
+        order: orderWithItems,
+        user: user
+      });
+
+      if (shipmozoResult.success) {
+        // Update order with Shipmozo details
+        order.shipmozoAwb = shipmozoResult.awb;
+        order.courierName = shipmozoResult.courier_name;
+        order.trackingUrl = shipmozoResult.tracking_url;
+        order.shipmentStatus = shipmozoResult.status || 'created';
+        order.shippingPending = false;
+        order.status = 'packed'; // Update status to packed when shipment is created
+        await order.save();
+        
+        console.log(`✅ Shipmozo shipment created for order ${order.orderNumber}, AWB: ${shipmozoResult.awb}`);
+      } else {
+        // If Shipmozo fails, mark shipping as pending but don't fail the order
+        order.shippingPending = true;
+        await order.save();
+        console.error(`⚠️ Shipmozo shipment creation failed for order ${order.orderNumber}:`, shipmozoResult.error);
+      }
+    } catch (shipmozoError) {
+      // If Shipmozo service fails, mark shipping as pending but don't fail the order
+      order.shippingPending = true;
+      await order.save();
+      console.error(`⚠️ Shipmozo shipment creation error for order ${order.orderNumber}:`, shipmozoError.message);
+      // Don't throw error - order should still be saved successfully
+    }
+
+    // Reload order to get updated Shipmozo fields
+    const updatedOrder = await Order.findById(order._id);
+
+    res.json({ success: true, order: updatedOrder });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -392,6 +433,143 @@ router.get('/admin/all', protect, admin, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/orders/:id/track
+// @desc    Track shipment using AWB number
+// @access  Private
+router.get('/:id/track', protect, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Check if user owns the order or is admin
+    if (order.user.toString() !== req.user.id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    // Check if AWB exists
+    if (!order.shipmozoAwb) {
+      return res.status(400).json({ 
+        message: 'Tracking not available. Shipment not created yet.',
+        shippingPending: order.shippingPending
+      });
+    }
+
+    // Track shipment using Shipmozo
+    const trackingResult = await shipmozoService.trackShipment(order.shipmozoAwb);
+
+    if (trackingResult.success) {
+      // Update order with latest tracking status
+      order.shipmentStatus = trackingResult.status;
+      if (trackingResult.tracking_url) {
+        order.trackingUrl = trackingResult.tracking_url;
+      }
+      
+      // Update order status based on shipment status
+      if (trackingResult.status === 'delivered' && order.status !== 'delivered') {
+        order.status = 'delivered';
+        order.deliveredAt = new Date();
+      } else if (trackingResult.status === 'in_transit' && order.status === 'packed') {
+        order.status = 'shipped';
+      }
+      
+      await order.save();
+
+      return res.json({
+        success: true,
+        tracking: {
+          awb: trackingResult.awb,
+          status: trackingResult.status,
+          courier_name: trackingResult.courier_name || order.courierName,
+          tracking_url: trackingResult.tracking_url || order.trackingUrl,
+          events: trackingResult.events || [],
+          estimated_delivery: trackingResult.estimated_delivery,
+          current_location: trackingResult.current_location
+        },
+        order: {
+          status: order.status,
+          shipmentStatus: order.shipmentStatus
+        }
+      });
+    } else {
+      // Return current tracking info even if API call fails
+      return res.status(200).json({
+        success: false,
+        message: trackingResult.error || 'Failed to fetch tracking information',
+        tracking: {
+          awb: order.shipmozoAwb,
+          status: order.shipmentStatus,
+          courier_name: order.courierName,
+          tracking_url: order.trackingUrl
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Track shipment error:', error);
+    res.status(500).json({ message: error.message || 'Failed to track shipment' });
+  }
+});
+
+// @route   POST /api/orders/:id/create-shipment
+// @desc    Manually create shipment for order (Admin)
+// @access  Private/Admin
+router.post('/:id/create-shipment', protect, admin, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id).populate('items.product');
+    
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.shipmozoAwb) {
+      return res.status(400).json({ message: 'Shipment already created for this order' });
+    }
+
+    if (order.paymentStatus !== 'paid') {
+      return res.status(400).json({ message: 'Cannot create shipment for unpaid order' });
+    }
+
+    // Get user details
+    const user = await User.findById(order.user);
+
+    // Create shipment
+    const shipmozoResult = await shipmozoService.createShipment({
+      order: order,
+      user: user
+    });
+
+    if (shipmozoResult.success) {
+      order.shipmozoAwb = shipmozoResult.awb;
+      order.courierName = shipmozoResult.courier_name;
+      order.trackingUrl = shipmozoResult.tracking_url;
+      order.shipmentStatus = shipmozoResult.status || 'created';
+      order.shippingPending = false;
+      order.status = 'packed';
+      await order.save();
+
+      return res.json({
+        success: true,
+        message: 'Shipment created successfully',
+        order
+      });
+    } else {
+      order.shippingPending = true;
+      await order.save();
+      
+      return res.status(500).json({
+        success: false,
+        message: shipmozoResult.error || 'Failed to create shipment',
+        shippingPending: true
+      });
+    }
+  } catch (error) {
+    console.error('Create shipment error:', error);
+    res.status(500).json({ message: error.message || 'Failed to create shipment' });
   }
 });
 

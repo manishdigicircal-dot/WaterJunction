@@ -88,7 +88,29 @@ const orderSchema = new mongoose.Schema({
   estimatedDelivery: Date,
   deliveredAt: Date,
   cancelledAt: Date,
-  cancellationReason: String
+  cancellationReason: String,
+  // Shipmozo integration fields
+  shipmozoAwb: {
+    type: String,
+    default: null
+  },
+  courierName: {
+    type: String,
+    default: null
+  },
+  trackingUrl: {
+    type: String,
+    default: null
+  },
+  shipmentStatus: {
+    type: String,
+    enum: ['created', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered', 'returned', 'rto', 'cancelled', null],
+    default: null
+  },
+  shippingPending: {
+    type: Boolean,
+    default: false
+  }
 }, {
   timestamps: true
 });
