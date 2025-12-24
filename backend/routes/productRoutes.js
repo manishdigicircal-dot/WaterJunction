@@ -653,13 +653,35 @@ router.post('/', protect, admin, uploadProductFiles.fields([
       setTimeout(() => reject(new Error('Product creation timeout after 30 seconds')), 30000);
     });
     
-    const product = await Promise.race([createPromise, timeoutPromise]);
+    let product = await Promise.race([createPromise, timeoutPromise]);
     
     const createTime = Date.now() - createStartTime;
     console.log(`✅ Product created successfully in ${createTime}ms with ${product.images?.length || 0} images (all Cloudinary URLs)`);
     console.log('📸 Product images after creation:', product.images);
     console.log('📸 Images array type:', typeof product.images, 'Is Array:', Array.isArray(product.images));
     console.log('📸 Images that were sent to create:', images.length, images);
+    
+    // CRITICAL FIX: If images array is empty in the created product but we had images, update it directly
+    if (images.length > 0 && (!product.images || product.images.length === 0)) {
+      console.warn('⚠️ CRITICAL: Product created but images are empty! Forcing update...');
+      try {
+        // Use direct MongoDB update to ensure images are saved
+        const db = mongoose.connection.db;
+        const collection = db.collection('products');
+        await collection.updateOne(
+          { _id: product._id },
+          { $set: { images: images } }
+        );
+        console.log('✅ Images forcefully updated in database');
+        
+        // Refetch product to get updated version
+        product = await Product.findById(product._id);
+        console.log('📸 Product images after force update:', product.images);
+      } catch (forceUpdateErr) {
+        console.error('❌ Error force updating images:', forceUpdateErr.message);
+      }
+    }
+    
     if (product.images && product.images.length > 0) {
       console.log('📸 First image URL:', product.images[0].substring(0, 100));
     } else {
@@ -676,6 +698,24 @@ router.post('/', protect, admin, uploadProductFiles.fields([
         imagesLength: freshProduct.images?.length,
         firstImageInDB: freshProduct.images?.[0]?.substring(0, 80)
       });
+      
+      // If still empty, try one more time with native MongoDB
+      if (images.length > 0 && (!freshProduct.images || freshProduct.images.length === 0)) {
+        console.warn('⚠️ Images still empty in DB! Trying native MongoDB update...');
+        const db = mongoose.connection.db;
+        const collection = db.collection('products');
+        await collection.updateOne(
+          { _id: product._id },
+          { $set: { images: images } }
+        );
+        const finalCheck = await collection.findOne({ _id: product._id });
+        console.log('🔍 Final check after native update:', {
+          imagesLength: finalCheck?.images?.length,
+          images: finalCheck?.images
+        });
+        // Refetch for response
+        product = await Product.findById(product._id);
+      }
     } catch (freshErr) {
       console.error('❌ Error fetching fresh product:', freshErr.message);
     }
