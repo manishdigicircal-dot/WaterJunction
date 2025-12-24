@@ -212,10 +212,6 @@ mongoose
   .then(() => {
     console.log('✅ MongoDB Connected Successfully');
     
-    // Disable mongoose buffering (set after connection)
-    mongoose.set('bufferCommands', false);
-    mongoose.set('bufferMaxEntries', 0);
-    
     // Handle connection events
     mongoose.connection.on('error', (err) => {
       console.error('❌ MongoDB connection error:', err);
