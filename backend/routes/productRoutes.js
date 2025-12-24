@@ -107,6 +107,9 @@ router.get('/', [
     // First try without populate to avoid potential issues
     console.log('⏳ Step 1: Fetching products without populate...');
     console.log('📊 MongoDB connection state:', mongoose.connection.readyState, '(0=disconnected, 1=connected, 2=connecting, 3=disconnecting)');
+    console.log('🔍 Filter being used:', JSON.stringify(filter));
+    console.log('📋 Sort being used:', JSON.stringify(sort));
+    console.log('📄 Skip:', skip, 'Limit:', limit);
     
     let productsData;
     try {
@@ -116,25 +119,39 @@ router.get('/', [
         throw new Error('MongoDB connection not ready');
       }
       
-      productsData = await Product.find(filter)
+      console.log('⏱️ Starting Product.find() query...');
+      const startTime = Date.now();
+      
+      // Use Promise.race to add an extra timeout layer
+      const queryPromise = Product.find(filter)
         .select(fieldsToSelect)
         .sort(sort)
         .skip(skip)
         .limit(limit)
         .lean()
-        .maxTimeMS(20000); // Increased timeout to 20 seconds
-      console.log(`✅ Products fetched: ${productsData.length} products`);
+        .maxTimeMS(15000); // 15 seconds timeout
+      
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Query timeout after 15 seconds')), 15000);
+      });
+      
+      productsData = await Promise.race([queryPromise, timeoutPromise]);
+      
+      const queryTime = Date.now() - startTime;
+      console.log(`✅ Products fetched in ${queryTime}ms: ${productsData.length} products`);
+      
+      if (productsData.length === 0) {
+        console.log('⚠️ No products found with filter:', JSON.stringify(filter));
+      }
     } catch (err) {
       console.error('❌ Error fetching products:', err.message);
       console.error('❌ Error name:', err.name);
       console.error('❌ Error code:', err.code);
-      if (err.name === 'MongoNetworkTimeoutError' || err.name === 'MongoServerSelectionError') {
-        // Return empty array instead of error for network issues
-        console.warn('⚠️ Network timeout, returning empty products array');
-        productsData = [];
-      } else {
-        throw err;
-      }
+      console.error('❌ Full error:', err);
+      
+      // Return empty array on any error to prevent app crash
+      console.warn('⚠️ Returning empty products array due to error');
+      productsData = [];
     }
     
     // Then populate categories separately if needed
