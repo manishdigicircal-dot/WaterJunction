@@ -148,7 +148,7 @@ router.get('/', [
         ];
         
         productsData = await Product.aggregate(pipeline)
-          .option({ maxTimeMS: 10000 });
+          .maxTimeMS(10000);
         
         const queryTime = Date.now() - startTime;
         console.log(`✅ Aggregation query succeeded in ${queryTime}ms: ${productsData.length} products`);
