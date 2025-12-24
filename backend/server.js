@@ -200,14 +200,17 @@ if (!mongoUri) {
 
 mongoose
   .connect(mongoUri, {
-    maxPoolSize: 10,
-    minPoolSize: 2,
-    serverSelectionTimeoutMS: 30000, // Increased to 30 seconds
-    socketTimeoutMS: 45000,
-    connectTimeoutMS: 30000, // Connection timeout
+    maxPoolSize: 50, // Increased pool size
+    minPoolSize: 5,
+    serverSelectionTimeoutMS: 60000, // Increased to 60 seconds
+    socketTimeoutMS: 90000, // Increased socket timeout to 90 seconds
+    connectTimeoutMS: 60000, // Increased connection timeout to 60 seconds
     heartbeatFrequencyMS: 10000, // Keep connection alive
     retryWrites: true,
     retryReads: true,
+    // Additional options for better reliability
+    maxIdleTimeMS: 30000, // Close idle connections after 30 seconds
+    waitQueueTimeoutMS: 60000, // Wait for connection from pool
   })
   .then(() => {
     console.log('✅ MongoDB Connected Successfully');

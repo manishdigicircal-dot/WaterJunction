@@ -147,8 +147,8 @@ router.get('/', [
           }
         ];
         
-        // Pass options as second parameter
-        productsData = await Product.aggregate(pipeline, { maxTimeMS: 10000 });
+        // Pass options as second parameter - increased timeout for slow connections
+        productsData = await Product.aggregate(pipeline, { maxTimeMS: 60000 });
         
         const queryTime = Date.now() - startTime;
         console.log(`✅ Aggregation query succeeded in ${queryTime}ms: ${productsData.length} products`);
