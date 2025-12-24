@@ -158,11 +158,21 @@ router.get('/', [
           productsData = await Promise.race([queryPromise, timeoutPromise]);
           
           productsData = productsData.map(product => {
-            let firstImage = product.images && product.images.length > 0 ? product.images[0] : null;
-            // Filter out large base64 images
+            // Handle images array from aggregation
+            let imagesArray = product.images || [];
+            let firstImage = Array.isArray(imagesArray) && imagesArray.length > 0 ? imagesArray[0] : null;
+            
+            // Filter out large base64 images (but keep Cloudinary URLs and small base64)
             if (firstImage && firstImage.startsWith('data:') && firstImage.length > 500000) {
+              console.log(`⚠️ Skipping large base64 image for product ${product._id} (${Math.round(firstImage.length/1024)}KB)`);
               firstImage = null;
             }
+            
+            // Log for debugging
+            if (firstImage) {
+              console.log(`✅ Image found for product ${product._id}: ${firstImage.substring(0, 80)}...`);
+            }
+            
             return {
               ...product,
               _id: product._id ? product._id.toString() : product._id,
