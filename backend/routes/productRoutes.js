@@ -641,8 +641,26 @@ router.post('/', protect, admin, uploadProductFiles.fields([
     const createTime = Date.now() - createStartTime;
     console.log(`✅ Product created successfully in ${createTime}ms with ${product.images?.length || 0} images (all Cloudinary URLs)`);
     console.log('📸 Product images after creation:', product.images);
+    console.log('📸 Images array type:', typeof product.images, 'Is Array:', Array.isArray(product.images));
+    console.log('📸 Images that were sent to create:', images.length, images);
     if (product.images && product.images.length > 0) {
       console.log('📸 First image URL:', product.images[0].substring(0, 100));
+    } else {
+      console.warn('⚠️ WARNING: Product created but images array is empty! Images sent:', images.length);
+      console.warn('⚠️ Images that should have been saved:', images);
+    }
+
+    // Fetch fresh from database to verify it was saved
+    try {
+      const freshProduct = await Product.findById(product._id).lean();
+      console.log('🔍 Fresh product from DB after save:', {
+        _id: freshProduct._id,
+        imagesInDB: freshProduct.images,
+        imagesLength: freshProduct.images?.length,
+        firstImageInDB: freshProduct.images?.[0]?.substring(0, 80)
+      });
+    } catch (freshErr) {
+      console.error('❌ Error fetching fresh product:', freshErr.message);
     }
 
     res.status(201).json({ success: true, product });
