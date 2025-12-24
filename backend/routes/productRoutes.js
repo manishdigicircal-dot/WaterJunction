@@ -20,9 +20,12 @@ router.get('/', [
   query('sort').optional().isIn(['price-asc', 'price-desc', 'rating-desc', 'newest', 'name-asc'])
 ], async (req, res) => {
   try {
+    console.log('📦 Products API called:', req.query);
+    
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.error('❌ Validation errors:', errors.array());
       return res.status(400).json({ 
         success: false,
         message: 'Validation error',
@@ -40,7 +43,10 @@ router.get('/', [
     // Filter by featured products if requested
     if (req.query.featured === 'true') {
       filter.isFeatured = true;
+      console.log('⭐ Filtering featured products');
     }
+    
+    console.log('🔍 Filter:', JSON.stringify(filter));
 
     if (req.query.category) {
       // Validate and convert to ObjectId
@@ -96,6 +102,7 @@ router.get('/', [
     const fieldsToSelect = 'name slug images price mrp discountPercent stock ratings category isFeatured createdAt';
     
     // Build query with optimizations
+    console.log('🔎 Executing products query...');
     const productsQuery = Product.find(filter)
       .select(fieldsToSelect)
       .populate({
@@ -110,10 +117,13 @@ router.get('/', [
       .maxTimeMS(15000); // 15 seconds for query timeout
     
     // Execute queries in parallel for better performance
+    console.log('⏳ Waiting for database query...');
     const [productsData, total] = await Promise.all([
       productsQuery,
       Product.countDocuments(filter).maxTimeMS(15000)
     ]);
+    
+    console.log(`✅ Found ${productsData.length} products, total: ${total}`);
     
     // Optimize products: Only send first image to reduce payload size dramatically
     // Base64 images can be 100KB+ each, so 8 products with multiple images = huge payload
@@ -128,6 +138,7 @@ router.get('/', [
       'ETag': `"${Date.now()}-${total}"` // ETag for cache validation
     });
 
+    console.log('📤 Sending response with', products.length, 'products');
     res.json({
       success: true,
       products,
@@ -139,7 +150,13 @@ router.get('/', [
       }
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Products API Error:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false,
+      message: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
