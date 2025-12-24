@@ -134,7 +134,7 @@ router.get('/', [
             $project: {
               name: 1,
               slug: 1,
-              images: 1,
+              images: { $slice: ['$images', 1] }, // Only first image
               price: 1,
               mrp: 1,
               discountPercent: 1,
@@ -147,8 +147,8 @@ router.get('/', [
           }
         ];
         
-        productsData = await Product.aggregate(pipeline)
-          .maxTimeMS(10000);
+        // Pass options as second parameter
+        productsData = await Product.aggregate(pipeline, { maxTimeMS: 10000 });
         
         const queryTime = Date.now() - startTime;
         console.log(`✅ Aggregation query succeeded in ${queryTime}ms: ${productsData.length} products`);
