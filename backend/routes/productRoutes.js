@@ -456,18 +456,52 @@ router.post('/', protect, admin, uploadProductFiles.fields([
     console.log('Creating product with images:', images.length);
     console.log('Images preview:', images.slice(0, 1).map(img => img.substring(0, 80) + '...'));
 
-    const product = await Product.create({
+    // Check MongoDB connection before creating
+    if (mongoose.connection.readyState !== 1) {
+      console.error('❌ MongoDB not connected, readyState:', mongoose.connection.readyState);
+      return res.status(503).json({ 
+        success: false,
+        message: 'Database connection not ready. Please try again in a moment.' 
+      });
+    }
+
+    console.log('⏳ Creating product in database...');
+    const createStartTime = Date.now();
+    
+    // Wrap Product.create in timeout
+    const createPromise = Product.create({
       ...cleanProductData,
       images: images.length > 0 ? images : [], // Ensure images array is always set
       video: video || ''
     });
-
-    console.log('Product created successfully with images:', product.images?.length || 0);
+    
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Product creation timeout after 60 seconds')), 60000);
+    });
+    
+    const product = await Promise.race([createPromise, timeoutPromise]);
+    
+    const createTime = Date.now() - createStartTime;
+    console.log(`✅ Product created successfully in ${createTime}ms with images:`, product.images?.length || 0);
 
     res.status(201).json({ success: true, product });
   } catch (error) {
-    console.error('Product creation error:', error);
-    res.status(500).json({ message: error.message || 'Failed to create product' });
+    console.error('❌ Product creation error:', error);
+    console.error('❌ Error name:', error.name);
+    console.error('❌ Error message:', error.message);
+    
+    // Handle timeout errors specifically
+    if (error.message.includes('timeout') || error.name === 'MongoNetworkTimeoutError') {
+      return res.status(504).json({ 
+        success: false,
+        message: 'Product creation timed out. The database connection is slow. Please try again or contact support.' 
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      message: error.message || 'Failed to create product' 
+    });
   }
 });
 
