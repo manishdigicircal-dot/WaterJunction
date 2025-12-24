@@ -194,7 +194,6 @@ const Checkout = () => {
         
         // Store order ID in variable for handler
         const orderIdForHandler = data.order._id;
-        let razorpayInstance = null;
         
         const options = {
           key: RAZORPAY_KEY_ID,
@@ -204,11 +203,6 @@ const Checkout = () => {
           name: 'WaterJunction',
           description: 'Order Payment',
           handler: function(response) {
-            // Close Razorpay modal immediately
-            if (razorpayInstance) {
-              razorpayInstance.close();
-            }
-            
             // Show loading message
             toast.loading('Verifying payment...', { id: 'payment-verification' });
             
@@ -263,8 +257,13 @@ const Checkout = () => {
 
         if (window.Razorpay) {
           const razorpayInstance = new window.Razorpay(options);
+          
+          // Store instance reference in options for handler to access if needed
+          options._instance = razorpayInstance;
+          
           razorpayInstance.on('payment.failed', function (response) {
             console.error('Payment failed:', response);
+            razorpayInstance.close();
             toast.error('Payment failed. Please try again.');
             setTimeout(() => {
               window.location.href = '/payment-failed';
@@ -272,11 +271,15 @@ const Checkout = () => {
           });
           
           razorpayInstance.on('modal.ondismiss', function() {
+            console.log('Razorpay modal dismissed');
             setLoading(false);
           });
+          
           razorpayInstance.open();
+          setLoading(false); // Reset loading so user can close modal if needed
         } else {
           toast.error('Razorpay SDK not loaded. Please refresh the page.');
+          setLoading(false);
         }
       }
     } catch (error) {
