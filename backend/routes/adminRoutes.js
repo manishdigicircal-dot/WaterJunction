@@ -365,3 +365,73 @@ export default router;
 
 
 
+
+
+    user.isBlocked = !user.isBlocked;
+    await user.save();
+
+    res.json({ success: true, user });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   POST /api/admin/products/import
+// @desc    Import products from CSV
+// @access  Private/Admin
+router.post('/products/import', async (req, res) => {
+  try {
+    // This would require file upload middleware
+    // For now, we'll return a placeholder
+    res.json({ message: 'CSV import endpoint - implement file upload middleware' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   GET /api/admin/products/export
+// @desc    Export products to CSV
+// @access  Private/Admin
+router.get('/products/export', async (req, res) => {
+  try {
+    const products = await Product.find().populate('category', 'name');
+
+    const csvData = products.map(product => ({
+      name: product.name,
+      category: product.category?.name || '',
+      price: product.price,
+      mrp: product.mrp,
+      stock: product.stock,
+      description: product.description,
+      images: product.images.join('|'),
+      isActive: product.isActive
+    }));
+
+    const writer = csvWriter.createObjectCsvStringifier({
+      header: [
+        { id: 'name', title: 'Name' },
+        { id: 'category', title: 'Category' },
+        { id: 'price', title: 'Price' },
+        { id: 'mrp', title: 'MRP' },
+        { id: 'stock', title: 'Stock' },
+        { id: 'description', title: 'Description' },
+        { id: 'images', title: 'Images' },
+        { id: 'isActive', title: 'Is Active' }
+      ]
+    });
+
+    const csv = writer.getHeaderString() + writer.stringifyRecords(csvData);
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=products.csv');
+    res.send(csv);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+export default router;
+
+
+
+
