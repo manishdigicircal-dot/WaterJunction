@@ -208,12 +208,13 @@ mongoose
     heartbeatFrequencyMS: 10000, // Keep connection alive
     retryWrites: true,
     retryReads: true,
-    // Additional options for stability
-    bufferMaxEntries: 0, // Disable mongoose buffering
-    bufferCommands: false, // Disable mongoose buffering
   })
   .then(() => {
     console.log('✅ MongoDB Connected Successfully');
+    
+    // Disable mongoose buffering (set after connection)
+    mongoose.set('bufferCommands', false);
+    mongoose.set('bufferMaxEntries', 0);
     
     // Handle connection events
     mongoose.connection.on('error', (err) => {
