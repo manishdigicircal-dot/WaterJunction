@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { register } from '../../store/slices/authSlice';
-import { syncGuestCart } from '../../store/slices/cartSlice';
 import { getTranslation } from '../../utils/translations';
 import toast from 'react-hot-toast';
 import { FiUser, FiMail, FiLock, FiEye, FiEyeOff, FiPhone, FiCheckCircle } from 'react-icons/fi';
@@ -124,12 +123,6 @@ const Register = () => {
           password: formData.password
         })
       ).unwrap();
-
-      try {
-        await dispatch(syncGuestCart()).unwrap();
-      } catch (cartError) {
-        console.error('Cart sync error:', cartError);
-      }
 
       toast.success('Registration successful!');
       navigate('/');

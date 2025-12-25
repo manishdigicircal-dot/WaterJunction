@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { login, setCredentials } from '../../store/slices/authSlice';
-import { syncGuestCart } from '../../store/slices/cartSlice';
 import { getTranslation } from '../../utils/translations';
 import toast from 'react-hot-toast';
 import { GoogleLogin } from '@react-oauth/google';
@@ -42,12 +41,6 @@ const Login = () => {
     e.preventDefault();
     try {
       await dispatch(login(formData)).unwrap();
-      // Sync guest cart to backend after login
-      try {
-        await dispatch(syncGuestCart()).unwrap();
-      } catch (cartError) {
-        console.error('Cart sync error:', cartError);
-      }
       toast.success('Logged in successfully!');
       navigate('/');
     } catch (error) {
@@ -84,12 +77,6 @@ const Login = () => {
       dispatch(setCredentials({ user: data.user, token: data.token }));
       localStorage.setItem('token', data.token);
       localStorage.setItem('refreshToken', data.refreshToken);
-      // Sync guest cart to backend after Google login
-      try {
-        await dispatch(syncGuestCart()).unwrap();
-      } catch (cartError) {
-        console.error('Cart sync error:', cartError);
-      }
       toast.success('Logged in with Google!');
       navigate('/');
     } catch (error) {
@@ -133,12 +120,6 @@ const Login = () => {
             dispatch(setCredentials({ user: data.user, token: data.token }));
             localStorage.setItem('token', data.token);
             localStorage.setItem('refreshToken', data.refreshToken);
-            // Sync guest cart to backend after Facebook login
-            try {
-              await dispatch(syncGuestCart()).unwrap();
-            } catch (cartError) {
-              console.error('Cart sync error:', cartError);
-            }
             toast.success('Logged in with Facebook!');
             navigate('/');
           } catch (error) {
