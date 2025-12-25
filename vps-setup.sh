@@ -54,3 +54,5 @@ pm2 logs waterjunction-backend --lines 20 --nostream
 echo -e "${GREEN}✅ Setup complete!${NC}"
 echo -e "${YELLOW}If you see MongoDB connection errors, please update MONGO_URI in backend/.env file.${NC}"
 
+
+

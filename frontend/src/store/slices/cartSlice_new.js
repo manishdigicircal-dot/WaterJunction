@@ -377,3 +377,4 @@ const calculateTotal = (items) => {
 
 export const { clearCartError, initializeGuestCart } = cartSlice.actions;
 export default cartSlice.reducer;
+

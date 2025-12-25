@@ -57,3 +57,5 @@ flashSaleSchema.methods.isCurrentlyActive = function() {
 const FlashSale = mongoose.model('FlashSale', flashSaleSchema);
 
 export default FlashSale;
+
+

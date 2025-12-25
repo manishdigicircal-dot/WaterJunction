@@ -56,6 +56,11 @@ app.use(cors({
 }));
 
 // ============================================
+// TRUST PROXY (Required for rate limiting behind nginx)
+// ============================================
+app.set('trust proxy', 1); // Trust first proxy (nginx)
+
+// ============================================
 // BODY PARSING MIDDLEWARE
 // ============================================
 app.use(express.json({ limit: '10mb' }));
