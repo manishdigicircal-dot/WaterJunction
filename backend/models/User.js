@@ -4,32 +4,34 @@ import bcrypt from 'bcryptjs';
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true,
+    required: [true, 'Please add a name'],
     trim: true
   },
   email: {
     type: String,
+    required: [true, 'Please add an email'],
+    unique: true,
     lowercase: true,
-    trim: true,
-    sparse: true,
-    index: true
-  },
-  phone: {
-    type: String,
-    trim: true,
-    sparse: true,
-    index: true
+    match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please add a valid email']
   },
   password: {
     type: String,
-    select: false
+    required: function() {
+      return this.authProvider === 'email';
+    },
+    minlength: 6,
+    select: false // Don't include password in queries by default
+  },
+  phone: {
+    type: String,
+    trim: true
   },
   role: {
     type: String,
     enum: ['user', 'admin'],
     default: 'user'
   },
-  isBlocked: {
+  isEmailVerified: {
     type: Boolean,
     default: false
   },
@@ -37,19 +39,10 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  isEmailVerified: {
-    type: Boolean,
-    default: false
-  },
-  otp: {
-    code: String,
-    expiresAt: Date
-  },
-  resetPasswordToken: String,
-  resetPasswordExpires: Date,
-  profilePhoto: {
+  authProvider: {
     type: String,
-    default: ''
+    enum: ['email', 'google', 'facebook'],
+    default: 'email'
   },
   addresses: [{
     name: String,
@@ -68,52 +61,44 @@ const userSchema = new mongoose.Schema({
       default: false
     }
   }],
-  authProvider: {
+  avatar: {
     type: String,
-    enum: ['email', 'phone', 'google', 'facebook'],
-    default: 'email'
+    default: ''
   },
-  googleId: String,
-  facebookId: String,
-  refreshToken: String
+  lastLogin: {
+    type: Date
+  }
 }, {
   timestamps: true
 });
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    return next();
+  if (!this.isModified('password')) return next();
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
   }
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
-// Method to compare password
-userSchema.methods.matchPassword = async function(enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+// Compare password method
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Ensure email/phone cannot be changed after creation
-userSchema.pre('save', function(next) {
-  if (this.isModified('email') && this.email && this._originalEmail) {
-    return next(new Error('Email cannot be changed'));
-  }
-  if (this.isModified('phone') && this.phone && this._originalPhone) {
-    return next(new Error('Phone cannot be changed'));
-  }
-  next();
-});
+// Update last login
+userSchema.methods.updateLastLogin = function() {
+  this.lastLogin = new Date();
+  return this.save({ validateBeforeSave: false });
+};
 
-// Store original values on creation
-userSchema.pre('save', function(next) {
-  if (this.isNew) {
-    this._originalEmail = this.email;
-    this._originalPhone = this.phone;
-  }
-  next();
-});
+// Index for better performance
+userSchema.index({ email: 1 });
+userSchema.index({ phone: 1 });
 
 const User = mongoose.model('User', userSchema);
 

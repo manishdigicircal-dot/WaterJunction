@@ -1,5 +1,29 @@
 import mongoose from 'mongoose';
 
+const cartItemSchema = new mongoose.Schema({
+  product: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Product',
+    required: true
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: [1, 'Quantity must be at least 1'],
+    default: 1
+  },
+  price: {
+    type: Number,
+    required: true,
+    min: [0, 'Price cannot be negative']
+  },
+  variant: {
+    type: Map,
+    of: String,
+    default: {}
+  }
+}, { _id: true });
+
 const cartSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -7,32 +31,18 @@ const cartSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  items: [{
-    product: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product',
-      required: true
-    },
-    quantity: {
-      type: Number,
-      required: true,
-      min: 1,
-      default: 1
-    },
-    variant: {
-      name: String,
-      value: String
-    },
-    addedAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
-  coupon: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Coupon'
+  items: [cartItemSchema],
+  totalItems: {
+    type: Number,
+    default: 0,
+    min: [0, 'Total items cannot be negative']
   },
-  lastUpdated: {
+  totalPrice: {
+    type: Number,
+    default: 0,
+    min: [0, 'Total price cannot be negative']
+  },
+  lastModified: {
     type: Date,
     default: Date.now
   }
@@ -40,15 +50,17 @@ const cartSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Calculate cart totals (virtual)
-cartSchema.virtual('totalItems').get(function() {
-  return this.items.reduce((sum, item) => sum + item.quantity, 0);
+// Update totals before saving
+cartSchema.pre('save', function(next) {
+  this.totalItems = this.items.reduce((sum, item) => sum + item.quantity, 0);
+  this.totalPrice = this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  this.lastModified = new Date();
+  next();
 });
 
-// PERFORMANCE: Add indexes for faster queries
-// Note: user field already has index due to unique: true
-cartSchema.index({ 'items.product': 1 }); // For product lookups
-cartSchema.index({ lastUpdated: -1 }); // For sorting
+// Indexes for better performance
+cartSchema.index({ user: 1 });
+cartSchema.index({ 'items.product': 1 });
 
 const Cart = mongoose.model('Cart', cartSchema);
 

@@ -3,118 +3,62 @@ import mongoose from 'mongoose';
 const productSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true,
-    trim: true
+    required: [true, 'Please add a product name'],
+    trim: true,
+    maxlength: [100, 'Name cannot be more than 100 characters']
   },
   slug: {
     type: String,
-    required: true,
     unique: true,
     lowercase: true
+  },
+  description: {
+    type: String,
+    required: [true, 'Please add a description'],
+    maxlength: [1000, 'Description cannot be more than 1000 characters']
+  },
+  price: {
+    type: Number,
+    required: [true, 'Please add a price'],
+    min: [0, 'Price cannot be negative']
+  },
+  mrp: {
+    type: Number,
+    min: [0, 'MRP cannot be negative']
   },
   category: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category',
-    required: true
-  },
-  description: {
-    type: String,
-    default: ''
-  },
-  images: [{
-    type: String
-  }],
-  video: {
-    type: String,
-    default: ''
-  },
-  price: {
-    type: Number,
-    required: true,
-    min: 0
-  },
-  mrp: {
-    type: Number,
-    required: true,
-    min: 0
-  },
-  discountPercent: {
-    type: Number,
-    default: 0,
-    min: 0,
-    max: 100
+    required: [true, 'Please add a category']
   },
   stock: {
     type: Number,
-    required: true,
-    default: 0,
-    min: 0
+    required: [true, 'Please add stock quantity'],
+    min: [0, 'Stock cannot be negative'],
+    default: 0
   },
-  ratings: {
-    average: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 5
-    },
-    count: {
-      type: Number,
-      default: 0
-    }
-  },
-  // Specifications
+  images: [{
+    type: String,
+    required: true
+  }],
   specifications: {
-    performanceFeatures: {
-      type: Map,
-      of: String,
-      default: {}
-    },
-    warranty: {
-      type: Map,
-      of: String,
-      default: {}
-    },
-    general: {
-      type: Map,
-      of: String,
-      default: {}
-    },
-    dimensions: {
-      type: Map,
-      of: String,
-      default: {}
-    }
+    performanceFeatures: Map,
+    warranty: Map,
+    general: Map,
+    dimensions: Map
   },
-  // Variants (colors, sizes, etc.)
-  variants: [{
-    name: String,
-    value: String,
-    price: Number,
-    stock: Number,
-    image: String
-  }],
-  // Q&A Section
-  questions: [{
-    question: String,
-    answer: String,
-    askedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    },
-    answeredBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    },
-    answeredAt: Date,
-    isApproved: {
-      type: Boolean,
-      default: false
-    }
-  }],
-  // Related Products
-  relatedProducts: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product'
+  weight: {
+    type: Number,
+    min: [0, 'Weight cannot be negative'],
+    default: 0.5 // in kg
+  },
+  brand: {
+    type: String,
+    trim: true
+  },
+  tags: [{
+    type: String,
+    trim: true
   }],
   isActive: {
     type: Boolean,
@@ -123,6 +67,24 @@ const productSchema = new mongoose.Schema({
   isFeatured: {
     type: Boolean,
     default: false
+  },
+  ratings: {
+    average: {
+      type: Number,
+      min: [0, 'Rating cannot be less than 0'],
+      max: [5, 'Rating cannot be more than 5'],
+      default: 0
+    },
+    count: {
+      type: Number,
+      default: 0,
+      min: [0, 'Count cannot be negative']
+    }
+  },
+  seo: {
+    metaTitle: String,
+    metaDescription: String,
+    keywords: [String]
   },
   views: {
     type: Number,
@@ -136,65 +98,36 @@ const productSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Auto-calculate discount percent
+// Create slug from name before saving
 productSchema.pre('save', function(next) {
-  if (this.mrp && this.price) {
-    this.discountPercent = Math.round(((this.mrp - this.price) / this.mrp) * 100);
+  if (this.isModified('name')) {
+    this.slug = this.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
   }
   next();
 });
 
-// Auto-generate slug only if name is modified and slug is not explicitly set
-// No length limit - unlimited slug length
-productSchema.pre('save', function(next) {
-  if ((this.isModified('name') || this.isNew) && !this.isModified('slug')) {
-    if (this.name) {
-      this.slug = this.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
-      // No truncation - unlimited length
-    }
-  }
-  // No truncation for slug - unlimited
-  next();
-});
-
-// No truncation for specifications - keys and values are unlimited
-productSchema.pre('save', function(next) {
-  // No truncation - all specifications keys and values are unlimited
-  // Just ensure they are valid Maps
-  if (this.specifications) {
-    const specSections = ['performanceFeatures', 'warranty', 'general', 'dimensions'];
-    
-    for (const section of specSections) {
-      if (this.specifications[section] && this.specifications[section] instanceof Map) {
-        // Keep as is - no truncation
-        // Maps are already valid, no need to recreate
-      }
-    }
-  }
-  next();
-});
-
-// Performance indexes for common queries
-// Compound index for category + isActive (most common filter)
-productSchema.index({ category: 1, isActive: 1 });
-
-// Index for sorting by price
+// Indexes for better performance
+productSchema.index({ name: 'text', description: 'text' });
+productSchema.index({ category: 1 });
 productSchema.index({ price: 1 });
-
-// Index for sorting by ratings
-productSchema.index({ 'ratings.average': -1 });
-
-// Index for sorting by date
+productSchema.index({ isActive: 1, isFeatured: 1 });
 productSchema.index({ createdAt: -1 });
+productSchema.index({ ratings: -1 });
 
-// Index for name search (regex queries)
-productSchema.index({ name: 1 });
+// Virtual for discount percentage
+productSchema.virtual('discountPercentage').get(function() {
+  if (this.mrp && this.mrp > this.price) {
+    return Math.round(((this.mrp - this.price) / this.mrp) * 100);
+  }
+  return 0;
+});
 
-// Index for isActive filter
-productSchema.index({ isActive: 1 });
+// Ensure virtual fields are serialized
+productSchema.set('toJSON', { virtuals: true });
+productSchema.set('toObject', { virtuals: true });
 
 const Product = mongoose.model('Product', productSchema);
 

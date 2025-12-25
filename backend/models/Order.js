@@ -1,146 +1,178 @@
 import mongoose from 'mongoose';
 
+const orderItemSchema = new mongoose.Schema({
+  product: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Product',
+    required: true
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: [1, 'Quantity must be at least 1']
+  },
+  price: {
+    type: Number,
+    required: true,
+    min: [0, 'Price cannot be negative']
+  },
+  variant: {
+    type: Map,
+    of: String,
+    default: {}
+  }
+});
+
+const shippingAddressSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  phone: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  email: {
+    type: String,
+    trim: true
+  },
+  addressLine1: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  addressLine2: {
+    type: String,
+    trim: true
+  },
+  city: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  state: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  pincode: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  country: {
+    type: String,
+    default: 'India'
+  }
+});
+
 const orderSchema = new mongoose.Schema({
+  orderNumber: {
+    type: String,
+    unique: true,
+    required: true
+  },
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
-  orderNumber: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  items: [{
-    product: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product',
-      required: true
-    },
-    name: String,
-    image: String,
-    price: Number,
-    quantity: Number,
-    variant: {
-      name: String,
-      value: String
-    }
-  }],
-  shippingAddress: {
-    name: String,
-    phone: String,
-    addressLine1: String,
-    addressLine2: String,
-    city: String,
-    state: String,
-    pincode: String,
-    country: String
-  },
+  items: [orderItemSchema],
+  shippingAddress: shippingAddressSchema,
   paymentMethod: {
     type: String,
-    enum: ['razorpay'],
-    default: 'razorpay'
+    enum: ['COD', 'ONLINE'],
+    required: true
   },
   paymentStatus: {
     type: String,
     enum: ['pending', 'paid', 'failed', 'refunded'],
     default: 'pending'
   },
-  paymentId: String,
-  razorpayOrderId: String,
-  razorpayPaymentId: String,
-  razorpaySignature: String,
+  orderStatus: {
+    type: String,
+    enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'],
+    default: 'pending'
+  },
+  // Financials
   subtotal: {
     type: Number,
-    required: true
+    required: true,
+    min: [0, 'Subtotal cannot be negative']
   },
-  shipping: {
+  shippingCost: {
     type: Number,
+    required: true,
+    min: [0, 'Shipping cost cannot be negative'],
     default: 0
   },
   tax: {
     type: Number,
+    min: [0, 'Tax cannot be negative'],
     default: 0
   },
   discount: {
     type: Number,
+    min: [0, 'Discount cannot be negative'],
     default: 0
-  },
-  coupon: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Coupon'
   },
   total: {
     type: Number,
-    required: true
+    required: true,
+    min: [0, 'Total cannot be negative']
   },
-  status: {
+  // Shipping
+  shippingProvider: {
     type: String,
-    enum: ['pending', 'paid', 'packed', 'shipped', 'delivered', 'returned', 'cancelled'],
-    default: 'pending'
+    default: 'Shipmozo'
   },
-  statusHistory: [{
-    status: String,
-    timestamp: Date,
-    note: String
-  }],
-  trackingNumber: String,
-  estimatedDelivery: Date,
-  deliveredAt: Date,
-  cancelledAt: Date,
-  cancellationReason: String,
-  // Shipmozo integration fields
-  shipmozoAwb: {
+  trackingNumber: {
+    type: String
+  },
+  estimatedDelivery: {
+    type: Date
+  },
+  actualDelivery: {
+    type: Date
+  },
+  // Razorpay payment details
+  razorpayOrderId: {
+    type: String
+  },
+  razorpayPaymentId: {
+    type: String
+  },
+  // Notes
+  customerNotes: {
     type: String,
-    default: null
+    maxlength: [500, 'Notes cannot be more than 500 characters']
   },
-  courierName: {
+  adminNotes: {
     type: String,
-    default: null
-  },
-  trackingUrl: {
-    type: String,
-    default: null
-  },
-  shipmentStatus: {
-    type: String,
-    enum: ['created', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered', 'returned', 'rto', 'cancelled', null],
-    default: null
-  },
-  shippingPending: {
-    type: Boolean,
-    default: false
+    maxlength: [500, 'Notes cannot be more than 500 characters']
   }
 }, {
   timestamps: true
 });
 
-// Generate order number before validation so required check passes
-orderSchema.pre('validate', async function(next) {
-  if (this.isNew && !this.orderNumber) {
-    const count = await mongoose.model('Order').countDocuments();
-    this.orderNumber = `WJ${Date.now()}${String(count + 1).padStart(4, '0')}`;
-  }
-  next();
-});
-
-// Add status to history when status changes
+// Generate order number before saving
 orderSchema.pre('save', function(next) {
-  if (this.isModified('status') && !this.isNew) {
-    this.statusHistory.push({
-      status: this.status,
-      timestamp: new Date()
-    });
+  if (this.isNew && !this.orderNumber) {
+    const timestamp = Date.now().toString().slice(-6);
+    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+    this.orderNumber = `WJ${timestamp}${random}`;
   }
   next();
 });
 
-// Add indexes for better query performance
+// Indexes for better performance
+orderSchema.index({ user: 1 });
+orderSchema.index({ orderNumber: 1 });
+orderSchema.index({ orderStatus: 1 });
 orderSchema.index({ paymentStatus: 1 });
-orderSchema.index({ status: 1 });
 orderSchema.index({ createdAt: -1 });
-orderSchema.index({ paymentStatus: 1, createdAt: -1 });
-orderSchema.index({ user: 1, createdAt: -1 });
 
 const Order = mongoose.model('Order', orderSchema);
 
