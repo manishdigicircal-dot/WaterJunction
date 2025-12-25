@@ -18,9 +18,14 @@ router.get('/', [
   query('minPrice').optional().isFloat({ min: 0 }),
   query('maxPrice').optional().isFloat({ min: 0 })
 ], async (req, res) => {
+  const startTime = Date.now();
+
   try {
+    console.log(`📦 Products API called - Origin: ${req.headers.origin}, Query:`, req.query);
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('❌ Validation errors:', errors.array());
       return res.status(400).json({
         success: false,
         message: 'Validation error',
@@ -56,8 +61,10 @@ router.get('/', [
       if (req.query.maxPrice) filter.price.$lte = parseFloat(req.query.maxPrice);
     }
 
-    // Execute query
-    const [products, total] = await Promise.all([
+    console.log('🔍 Filter:', JSON.stringify(filter));
+
+    // Execute query with timeout
+    const queryPromise = Promise.all([
       Product.find(filter)
         .select('name price mrp images category slug isFeatured')
         .populate('category', 'name')
@@ -68,6 +75,21 @@ router.get('/', [
       Product.countDocuments(filter)
     ]);
 
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Database query timeout')), 10000);
+    });
+
+    const [products, total] = await Promise.race([queryPromise, timeoutPromise]);
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ Found ${products.length} products, total: ${total}, duration: ${duration}ms`);
+
+    // Add CORS headers explicitly
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+
     res.json({
       success: true,
       products,
@@ -76,14 +98,28 @@ router.get('/', [
         limit,
         total,
         pages: Math.ceil(total / limit)
+      },
+      debug: {
+        duration: `${duration}ms`,
+        filter: filter,
+        origin: req.headers.origin || 'unknown'
       }
     });
 
   } catch (error) {
-    console.error('Products error:', error);
+    const duration = Date.now() - startTime;
+    console.error(`❌ Products error after ${duration}ms:`, error.message);
+
+    // Add CORS headers even on error
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Server error',
+      error: error.message,
+      duration: `${duration}ms`
     });
   }
 });
