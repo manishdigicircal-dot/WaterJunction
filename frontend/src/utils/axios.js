@@ -69,35 +69,3 @@ axiosInstance.interceptors.response.use(
 );
 
 export default axiosInstance;
-
-      if (error.message && error.message.includes('cache')) {
-        // Silently handle cache-related network errors
-        // The caller will handle the retry logic if needed
-      }
-    }
-    
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      console.error('Request timeout:', error.config?.url);
-      // Don't reject timeout errors immediately, let the caller handle retry logic
-    }
-    
-    // Handle network errors that might have succeeded (common with cache failures)
-    if (error.code === 'ERR_NETWORK' && error.response) {
-      // Network error but we have a response - likely a cache write failure
-      // Return the response if status is successful
-      if (error.response.status >= 200 && error.response.status < 300) {
-        return Promise.resolve(error.response);
-      }
-    }
-    
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      window.location.href = '/login';
-    }
-    
-    return Promise.reject(error);
-  }
-);
-
-export default axiosInstance;
